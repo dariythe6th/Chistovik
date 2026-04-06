@@ -1,0 +1,243 @@
+/* components.css - Общие компоненты для всех страниц */
+
+/* Header */
+.header {
+    background: white;
+    border-bottom: 1px solid var(--gray-200);
+    padding: 0 32px;
+    height: 64px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: var(--shadow-sm);
+}
+
+.logo {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.logo-link {
+    font-size: 24px;
+    font-weight: 800;
+    background: linear-gradient(135deg, var(--primary-dark), var(--primary));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    text-decoration: none;
+    transition: opacity var(--transition-fast);
+}
+
+.logo-link:hover {
+    opacity: 0.8;
+}
+
+.logo-icon {
+    font-size: 26px;
+}
+
+/* Navigation */
+.nav {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.nav-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    background: transparent;
+    border: none;
+    border-radius: var(--radius-sm);
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    color: var(--gray-500);
+    text-decoration: none;
+    transition: all var(--transition-fast);
+}
+
+.nav-btn:hover {
+    background: var(--gray-100);
+    color: var(--primary-dark);
+}
+
+.nav-btn.active {
+    background: var(--primary-dark);
+    color: white;
+}
+
+.nav-btn.active svg {
+    stroke: white;
+}
+
+/* Main container */
+.main-container {
+    max-width: 1600px;
+    margin: 0 auto;
+    padding: 24px 32px;
+}
+
+/* Modal */
+.modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal.active {
+    display: flex;
+}
+
+.modal-content {
+    background: white;
+    border-radius: var(--radius-lg);
+    width: 90%;
+    max-width: 450px;
+    overflow: hidden;
+    animation: fadeIn var(--transition-slow);
+}
+
+.modal-large {
+    max-width: 600px;
+}
+
+.modal-header {
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--gray-200);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.modal-header h3 {
+    font-size: 18px;
+    font-weight: 600;
+}
+
+.modal-close {
+    background: none;
+    border: none;
+    font-size: 24px;
+    cursor: pointer;
+    color: var(--gray-400);
+    transition: color var(--transition-fast);
+}
+
+.modal-close:hover {
+    color: var(--gray-600);
+}
+
+.modal-body {
+    padding: 24px;
+}
+
+.modal-footer {
+    padding: 16px 24px;
+    border-top: 1px solid var(--gray-200);
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+}
+
+/* Buttons */
+.modal-btn {
+    padding: 8px 20px;
+    border-radius: var(--radius-sm);
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    border: none;
+    transition: all var(--transition-fast);
+}
+
+.modal-btn.secondary {
+    background: var(--gray-100);
+    color: var(--gray-600);
+}
+
+.modal-btn.secondary:hover {
+    background: var(--gray-200);
+}
+
+.modal-btn.primary {
+    background: var(--primary-dark);
+    color: white;
+}
+
+.modal-btn.primary:hover {
+    background: var(--primary);
+}
+
+.modal-btn.danger {
+    background: var(--error-light);
+    color: var(--error);
+    border: 1px solid #fed7d7;
+}
+
+.modal-btn.danger:hover {
+    background: #fed7d7;
+}
+
+/* Toast notification */
+.toast {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background: var(--primary-dark);
+    color: white;
+    padding: 12px 20px;
+    border-radius: var(--radius-sm);
+    font-size: 14px;
+    z-index: 1000;
+    animation: slideIn var(--transition-slow);
+    box-shadow: var(--shadow-lg);
+}
+
+.toast.success {
+    background: var(--success);
+}
+
+.toast.error {
+    background: var(--error);
+}
+
+/* Empty state */
+.empty-state {
+    text-align: center;
+    padding: 48px 20px;
+    color: var(--gray-400);
+}
+
+.empty-state svg {
+    margin-bottom: 16px;
+    opacity: 0.5;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .header {
+        padding: 0 16px;
+    }
+    
+    .nav-btn span {
+        display: none;
+    }
+    
+    .main-container {
+        padding: 16px;
+    }
+}
