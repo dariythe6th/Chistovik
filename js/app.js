@@ -2,108 +2,194 @@
 
 const App = {
     currentAnalysis: null,
-    
-    init() {
+    modifiedText: null,
+    isModifiedMode: false,
+
+    init: function() {
         this.bindEvents();
         this.updateStatsFromText();
         
-        // Добавляем слушатель изменения текста для обновления статистики в реальном времени
-        document.getElementById('textInput').addEventListener('input', () => {
-            this.updateStatsFromText();
-        });
+        // Показываем выпадающий список выбора стиля при выборе чекбокса переработки
+        const rewriteCheckbox = document.getElementById('funcRewrite');
+        const styleContainer = document.getElementById('rewriteStyleContainer');
+        
+        if (rewriteCheckbox && styleContainer) {
+            rewriteCheckbox.addEventListener('change', function() {
+                styleContainer.style.display = rewriteCheckbox.checked ? 'flex' : 'none';
+            });
+        }
+        
+        // Слушатель изменения текста
+        const textInput = document.getElementById('textInput');
+        if (textInput) {
+            textInput.addEventListener('input', function() {
+                App.updateStatsFromText();
+                if (App.isModifiedMode) {
+                    App.hideModifiedColumn();
+                }
+            });
+        }
+        
+        // Загрузка из localStorage
+        this.loadFromStorage();
     },
     
-    bindEvents() {
-        // Анализ текста
-        document.getElementById('analyzeBtn').addEventListener('click', () => this.analyze());
+    bindEvents: function() {
+        const analyzeBtn = document.getElementById('analyzeBtn');
+        const saveBtn = document.getElementById('saveBtn');
+        const acceptBtn = document.getElementById('acceptChangesBtn');
         
-        // Сохранение текста
-        document.getElementById('saveBtn').addEventListener('click', () => this.showSaveModal());
+        if (analyzeBtn) analyzeBtn.addEventListener('click', function() { App.analyze(); });
+        if (saveBtn) saveBtn.addEventListener('click', function() { App.showSaveModal(); });
+        if (acceptBtn) acceptBtn.addEventListener('click', function() { App.acceptChanges(); });
         
         // Переключение вкладок
-        document.querySelectorAll('.tab-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
+        document.querySelectorAll('.results-panel .tab-btn').forEach(function(btn) {
+            btn.addEventListener('click', function(e) {
                 const tab = e.target.dataset.tab;
-                this.switchTab(tab);
+                App.switchTab(tab);
             });
         });
-        
-        // Переключение между редактором и историей
-        document.querySelectorAll('[data-view]').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const view = e.target.closest('[data-view]').dataset.view;
-                this.switchView(view);
-            });
-        });
-        
-        // Очистка истории
-        const clearBtn = document.getElementById('clearHistoryBtn');
-        if (clearBtn) {
-            clearBtn.addEventListener('click', () => this.clearHistory());
-        }
         
         // Модальное окно
         const modal = document.getElementById('saveModal');
-        document.querySelector('.modal-close').addEventListener('click', () => this.closeModal());
-        document.getElementById('cancelSaveBtn').addEventListener('click', () => this.closeModal());
-        document.getElementById('confirmSaveBtn').addEventListener('click', () => this.confirmSave());
+        const modalClose = document.querySelector('.modal-close');
+        const cancelBtn = document.getElementById('cancelSaveBtn');
+        const confirmBtn = document.getElementById('confirmSaveBtn');
         
-        // Закрытие модального окна по клику вне его
-        modal.addEventListener('click', (e) => {
-            if (e.target === modal) this.closeModal();
-        });
+        if (modalClose) modalClose.addEventListener('click', function() { App.closeModal(); });
+        if (cancelBtn) cancelBtn.addEventListener('click', function() { App.closeModal(); });
+        if (confirmBtn) confirmBtn.addEventListener('click', function() { App.confirmSave(); });
+        
+        if (modal) {
+            modal.addEventListener('click', function(e) {
+                if (e.target === modal) App.closeModal();
+            });
+        }
     },
     
-    updateStatsFromText() {
-        const text = document.getElementById('textInput').value;
-        const words = text.split(/\s+/).filter(w => w.length > 0);
-        const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 0);
+    updateStatsFromText: function() {
+        const textInput = document.getElementById('textInput');
+        if (!textInput) return;
         
-        document.getElementById('charCount').textContent = text.length;
-        document.getElementById('wordCount').textContent = words.length;
-        document.getElementById('sentenceCount').textContent = sentences.length;
+        const text = textInput.value;
+        const words = text.split(/\s+/).filter(function(w) { return w.length > 0; });
+        const sentences = text.split(/[.!?]+/).filter(function(s) { return s.trim().length > 0; });
+        
+        const charCount = document.getElementById('charCount');
+        const wordCount = document.getElementById('wordCount');
+        const sentenceCount = document.getElementById('sentenceCount');
+        
+        if (charCount) charCount.textContent = text.length;
+        if (wordCount) wordCount.textContent = words.length;
+        if (sentenceCount) sentenceCount.textContent = sentences.length;
     },
     
-    async analyze() {
-        const text = document.getElementById('textInput').value;
+    analyze: async function() {
+        const textInput = document.getElementById('textInput');
+        const text = textInput ? textInput.value : '';
         
         if (!text.trim()) {
             alert('Введите текст для анализа');
             return;
         }
         
+        // Собираем выбранные функции
+        const selectedFunctions = {
+            spelling: document.getElementById('funcSpelling') ? document.getElementById('funcSpelling').checked : true,
+            style: document.getElementById('funcStyle') ? document.getElementById('funcStyle').checked : true,
+            water: document.getElementById('funcWater') ? document.getElementById('funcWater').checked : false,
+            rewrite: document.getElementById('funcRewrite') ? document.getElementById('funcRewrite').checked : false,
+            tone: document.getElementById('funcTone') ? document.getElementById('funcTone').checked : false,
+            syntax: document.getElementById('funcSyntax') ? document.getElementById('funcSyntax').checked : false
+        };
+        
+        const rewriteStyleSelect = document.getElementById('rewriteStyleSelect');
+        const rewriteStyle = rewriteStyleSelect ? rewriteStyleSelect.value : 'neutral';
+        
         const analyzeBtn = document.getElementById('analyzeBtn');
-        const originalText = analyzeBtn.innerHTML;
-        analyzeBtn.innerHTML = '<div class="loading">⏳ Анализируем...</div>';
-        analyzeBtn.disabled = true;
+        const originalText = analyzeBtn ? analyzeBtn.innerHTML : '';
+        if (analyzeBtn) {
+            analyzeBtn.innerHTML = 'Анализируем...';
+            analyzeBtn.disabled = true;
+        }
         
         try {
-            const result = await API.analyzeText(text);
+            if (!window.API) {
+                throw new Error('API модуль не загружен');
+            }
+            
+            const result = await window.API.analyzeText(text, selectedFunctions, rewriteStyle);
             this.currentAnalysis = result;
             
-            // Обновляем интерфейс
-            Components.updateStats(result);
-            Components.displayRecommendations(result);
-            Components.displayComplexity(result);
+            // Обновляем статистику
+            if (window.Components) {
+                window.Components.updateStats(result);
+                window.Components.displayRecommendations(result);
+                window.Components.displayResults(result, selectedFunctions);
+            }
             
-            // Переключаемся на вкладку рекомендаций
-            this.switchTab('recommendations');
+            // Если есть переработанный текст, показываем вторую колонку
+            if (result.modified_text && selectedFunctions.rewrite) {
+                this.modifiedText = result.modified_text;
+                this.showModifiedColumn(result.modified_text);
+            }
             
-            // Показываем уведомление
-            this.showNotification('Анализ завершён!');
+            // Переключаемся на вкладку результатов
+            this.switchTab('results');
+            
+            if (window.Components) {
+                window.Components.showNotification('Анализ завершён');
+            }
             
         } catch (error) {
             console.error('Ошибка анализа:', error);
-            alert('Произошла ошибка при анализе текста');
+            alert('Произошла ошибка при анализе текста: ' + error.message);
         } finally {
-            analyzeBtn.innerHTML = originalText;
-            analyzeBtn.disabled = false;
+            if (analyzeBtn) {
+                analyzeBtn.innerHTML = originalText;
+                analyzeBtn.disabled = false;
+            }
         }
     },
     
-    switchTab(tabName) {
-        // Обновляем активную кнопку
-        document.querySelectorAll('.tab-btn').forEach(btn => {
+    showModifiedColumn: function(modifiedText) {
+        const modifiedColumn = document.getElementById('modifiedColumn');
+        const modifiedInput = document.getElementById('modifiedInput');
+        
+        if (modifiedColumn && modifiedInput) {
+            modifiedInput.value = modifiedText;
+            modifiedColumn.style.display = 'block';
+            this.isModifiedMode = true;
+        }
+    },
+    
+    hideModifiedColumn: function() {
+        const modifiedColumn = document.getElementById('modifiedColumn');
+        if (modifiedColumn) {
+            modifiedColumn.style.display = 'none';
+            this.isModifiedMode = false;
+            this.modifiedText = null;
+        }
+    },
+    
+    acceptChanges: function() {
+        if (this.modifiedText) {
+            const textInput = document.getElementById('textInput');
+            if (textInput) {
+                textInput.value = this.modifiedText;
+                this.updateStatsFromText();
+                this.hideModifiedColumn();
+                if (window.Components) {
+                    window.Components.showNotification('Изменения применены');
+                }
+                this.analyze();
+            }
+        }
+    },
+    
+    switchTab: function(tabName) {
+        document.querySelectorAll('.results-panel .tab-btn').forEach(function(btn) {
             if (btn.dataset.tab === tabName) {
                 btn.classList.add('active');
             } else {
@@ -111,91 +197,55 @@ const App = {
             }
         });
         
-        // Обновляем активную панель
-        document.querySelectorAll('.tab-pane').forEach(pane => {
+        document.querySelectorAll('.results-panel .tab-pane').forEach(function(pane) {
             pane.classList.remove('active');
         });
         
-        const activePane = document.getElementById(`${tabName}Tab`);
+        const activePane = document.getElementById(tabName + 'Tab');
         if (activePane) {
             activePane.classList.add('active');
         }
     },
     
-    switchView(viewName) {
-        const workspace = document.getElementById('workspaceView');
-        const history = document.getElementById('historyView');
+    scrollToPosition: function(position) {
+        const textarea = document.getElementById('textInput');
+        if (!textarea) return;
         
-        if (viewName === 'workspace') {
-            workspace.classList.add('active');
-            history.classList.remove('active');
-        } else if (viewName === 'history') {
-            workspace.classList.remove('active');
-            history.classList.add('active');
-            this.loadHistory();
-        }
+        textarea.focus();
+        textarea.setSelectionRange(position, position);
+        
+        const lineHeight = parseInt(getComputedStyle(textarea).lineHeight);
+        const lines = textarea.value.substring(0, position).split('\n').length;
+        const scrollPosition = (lines - 3) * lineHeight;
+        textarea.scrollTop = Math.max(0, scrollPosition);
     },
     
-    async loadHistory() {
-        try {
-            const history = await API.getHistory();
-            Components.displayHistory(history);
-        } catch (error) {
-            console.error('Ошибка загрузки истории:', error);
-        }
-    },
-    
-    async loadSavedText(id) {
-        try {
-            const history = await API.getHistory();
-            const text = history.find(t => t.id === id);
-            
-            if (text) {
-                // Переключаемся на редактор
-                this.switchView('workspace');
-                
-                // Загружаем текст
-                document.getElementById('textInput').value = text.content;
-                this.updateStatsFromText();
-                
-                // Запускаем анализ
-                await this.analyze();
-                
-                this.showNotification(`Загружен текст: ${text.title}`);
-            }
-        } catch (error) {
-            console.error('Ошибка загрузки текста:', error);
-        }
-    },
-    
-    async clearHistory() {
-        if (confirm('Вы уверены, что хотите очистить всю историю? Это действие нельзя отменить.')) {
-            await API.clearHistory();
-            await this.loadHistory();
-            this.showNotification('История очищена');
-        }
-    },
-    
-    showSaveModal() {
-        const text = document.getElementById('textInput').value;
+    showSaveModal: function() {
+        const textInput = document.getElementById('textInput');
+        const text = textInput ? textInput.value : '';
+        
         if (!text.trim()) {
             alert('Нечего сохранять. Введите текст.');
             return;
         }
         
         const modal = document.getElementById('saveModal');
-        const input = document.getElementById('textTitle');
+        const titleInput = document.getElementById('textTitle');
         
-        // Генерируем предложение по умолчанию
-        const firstLine = text.split('\n')[0].substring(0, 50);
-        input.value = firstLine || 'Новый текст';
+        if (titleInput) {
+            const firstLine = text.split('\n')[0].substring(0, 50);
+            titleInput.value = firstLine || 'Новый текст';
+        }
         
-        modal.classList.add('active');
+        if (modal) modal.classList.add('active');
     },
     
-    async confirmSave() {
-        const title = document.getElementById('textTitle').value.trim();
-        const content = document.getElementById('textInput').value;
+    confirmSave: async function() {
+        const titleInput = document.getElementById('textTitle');
+        const textInput = document.getElementById('textInput');
+        
+        const title = titleInput ? titleInput.value.trim() : '';
+        const content = textInput ? textInput.value : '';
         
         if (!title) {
             alert('Введите название текста');
@@ -205,109 +255,68 @@ const App = {
         this.closeModal();
         
         const saveBtn = document.getElementById('saveBtn');
-        const originalText = saveBtn.innerHTML;
-        saveBtn.innerHTML = '💾 Сохранение...';
-        saveBtn.disabled = true;
+        const originalText = saveBtn ? saveBtn.innerHTML : '';
+        if (saveBtn) {
+            saveBtn.innerHTML = 'Сохранение...';
+            saveBtn.disabled = true;
+        }
         
         try {
-            await API.saveText(title, content);
-            this.showNotification('Текст сохранён!');
-            
-            // Обновляем статус
-            const status = document.getElementById('statusIndicator');
-            status.textContent = 'Сохранено';
-            status.classList.add('saved');
-            setTimeout(() => {
-                status.textContent = '';
-                status.classList.remove('saved');
-            }, 2000);
-            
+            if (window.API) {
+                await window.API.saveText(title, content);
+                if (window.Components) {
+                    window.Components.showNotification('Текст сохранён');
+                }
+                
+                const status = document.getElementById('statusIndicator');
+                if (status) {
+                    status.textContent = 'Сохранено';
+                    status.classList.add('saved');
+                    setTimeout(function() {
+                        status.textContent = '';
+                        status.classList.remove('saved');
+                    }, 2000);
+                }
+            }
         } catch (error) {
             console.error('Ошибка сохранения:', error);
             alert('Не удалось сохранить текст');
         } finally {
-            saveBtn.innerHTML = originalText;
-            saveBtn.disabled = false;
+            if (saveBtn) {
+                saveBtn.innerHTML = originalText;
+                saveBtn.disabled = false;
+            }
         }
     },
     
-    closeModal() {
-        document.getElementById('saveModal').classList.remove('active');
+    closeModal: function() {
+        const modal = document.getElementById('saveModal');
+        if (modal) modal.classList.remove('active');
     },
     
-    scrollToPosition(position) {
-        const textarea = document.getElementById('textInput');
-        textarea.focus();
-        
-        // Устанавливаем курсор на позицию ошибки
-        textarea.setSelectionRange(position, position);
-        
-        // Прокручиваем к позиции
-        const lineHeight = parseInt(getComputedStyle(textarea).lineHeight);
-        const lines = textarea.value.substring(0, position).split('\n').length;
-        const scrollPosition = (lines - 3) * lineHeight;
-        
-        textarea.scrollTop = Math.max(0, scrollPosition);
-        
-        // Визуальный эффект подсветки
-        this.highlightTemporarily(position);
-    },
-    
-    highlightTemporarily(position) {
-        const textarea = document.getElementById('textInput');
-        const originalColor = textarea.style.backgroundColor;
-        
-        textarea.style.transition = 'background-color 0.3s';
-        textarea.style.backgroundColor = '#fef5e7';
-        
-        setTimeout(() => {
-            textarea.style.backgroundColor = originalColor;
-        }, 500);
-    },
-    
-    showNotification(message) {
-        // Создаём временное уведомление
-        const notification = document.createElement('div');
-        notification.textContent = message;
-        notification.style.cssText = `
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            background: #1e3c72;
-            color: white;
-            padding: 12px 20px;
-            border-radius: 10px;
-            font-size: 14px;
-            z-index: 1000;
-            animation: slideIn 0.3s ease;
-        `;
-        
-        document.body.appendChild(notification);
-        
-        setTimeout(() => {
-            notification.style.opacity = '0';
-            setTimeout(() => notification.remove(), 300);
-        }, 3000);
+    loadFromStorage: async function() {
+        const savedText = localStorage.getItem('chistovik_open_text');
+        if (savedText) {
+            const text = JSON.parse(savedText);
+            const textInput = document.getElementById('textInput');
+            if (textInput) {
+                textInput.value = text.content;
+                this.updateStatsFromText();
+            }
+            localStorage.removeItem('chistovik_open_text');
+            await this.analyze();
+            if (window.Components) {
+                window.Components.showNotification('Загружен текст: ' + text.title);
+            }
+        }
     }
 };
 
-// Добавляем анимацию
-const style = document.createElement('style');
-style.textContent = `
-    @keyframes slideIn {
-        from {
-            transform: translateX(100%);
-            opacity: 0;
-        }
-        to {
-            transform: translateX(0);
-            opacity: 1;
-        }
-    }
-`;
-document.head.appendChild(style);
-
 // Запуск приложения
-document.addEventListener('DOMContentLoaded', () => {
-    App.init();
-});
+if (typeof window !== 'undefined') {
+    window.App = App;
+    document.addEventListener('DOMContentLoaded', function() {
+        App.init();
+    });
+    console.log('App модуль загружен');
+}
