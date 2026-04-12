@@ -151,15 +151,161 @@ function generateMockAnalysis(text, selectedFunctions, rewriteStyle) {
 // API объект
 const API = {
     // Анализ текста
+    // Анализ текста (реальная орфография через Speller, остальное — заглушки)
     async analyzeText(text, selectedFunctions, rewriteStyle) {
         console.log('Анализ текста:', text.substring(0, 100) + '...');
         console.log('Выбранные функции:', selectedFunctions);
-        
-        // Имитация задержки сети
-        await new Promise(resolve => setTimeout(resolve, 1500));
-        
-        // Генерируем мок-данные
-        return generateMockAnalysis(text, selectedFunctions, rewriteStyle);
+
+        // Базовые метрики (синхронно)
+        const words = text.split(/\s+/).filter(w => w.length > 0);
+        const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 0);
+        const avgSentenceLength = sentences.length > 0 ? words.length / sentences.length : 0;
+        let readabilityScore = Math.max(0, Math.min(100, 100 - (avgSentenceLength - 10) * 3));
+        let readabilityLevel = 'Средний';
+        if (readabilityScore >= 70) readabilityLevel = 'Лёгкий';
+        else if (readabilityScore < 40) readabilityLevel = 'Сложный';
+        readabilityScore = Math.round(readabilityScore);
+
+        // Базовый объект результата
+        const result = {
+            id: 'analysis-' + Date.now(),
+            text_id: 'text-' + Date.now(),
+            analysed_at: new Date().toISOString(),
+            stats: {
+                characters: text.length,
+                words: words.length,
+                sentences: sentences.length,
+                avg_word_length: words.length > 0 ? Math.round((text.length / words.length) * 10) / 10 : 0,
+                avg_sentence_length: Math.round(avgSentenceLength * 10) / 10
+            },
+            readability_score: readabilityScore,
+            readability_level: readabilityLevel,
+            style_label: 'neutral',
+            style_confidence: 85,
+            water_percentage: 0,
+            water_phrases: [],
+            spelling_errors: [],
+            long_sentences: [],
+            recommendations: [],
+            modified_text: null
+        };
+
+        // ========== 1. ОРФОГРАФИЧЕСКАЯ ПРОВЕРКА (реальный Speller) ==========
+        // В функции analyzeText, в блоке орфографической проверки:
+
+        if (selectedFunctions.spelling && window.YandexSpeller) {
+            try {
+                console.log('Запуск орфографической проверки через Яндекс...');
+                const spellingErrors = await window.YandexSpeller.checkSpelling(text);
+                result.spelling_errors = spellingErrors;
+
+                spellingErrors.forEach(err => {
+                    result.recommendations.push({
+                        id: 'rec-spell-' + err.id,
+                        type: 'spelling',
+                        description: `Ошибка: "${err.originalWord}" → ${err.suggestions.join(', ')}`,
+                        suggested_change: err.suggestions[0] || '',
+                        position: err.position
+                    });
+                });
+                console.log(`Найдено орфографических ошибок: ${spellingErrors.length}`);
+            } catch (e) {
+                console.error('Яндекс.Спеллер не сработал:', e);
+            }
+        }
+
+        // ========== 2. ОСТАЛЬНЫЕ ФУНКЦИИ (пока заглушки, но асинхронно) ==========
+        // Имитируем небольшую задержку для остальных проверок (чтобы не было пустоты)
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+        // Стиль текста (заглушка)
+        if (selectedFunctions.style) {
+            const formalWords = ['следует', 'необходимо', 'в соответствии', 'обеспечить'];
+            const informalWords = ['короче', 'типа', 'ваще', 'прикол'];
+            let formalCount = formalWords.filter(fw => text.toLowerCase().includes(fw)).length;
+            let informalCount = informalWords.filter(iw => text.toLowerCase().includes(iw)).length;
+            if (formalCount > informalCount) result.style_label = 'formal';
+            else if (informalCount > formalCount) result.style_label = 'informal';
+            else result.style_label = 'neutral';
+        }
+
+        // Поиск воды (заглушка)
+        if (selectedFunctions.water) {
+            const waterWords = ['является', 'представляет собой', 'в настоящее время', 'принимая во внимание', 'в целом', 'следует отметить'];
+            let waterCount = 0;
+            waterWords.forEach(ww => {
+                const idx = text.toLowerCase().indexOf(ww);
+                if (idx !== -1) {
+                    waterCount++;
+                    result.water_phrases.push({
+                        id: 'water-' + Date.now() + '-' + idx,
+                        phrase: ww,
+                        position: idx,
+                        length: ww.length,
+                        recommendation: 'Заменить на более простую формулировку'
+                    });
+                    result.recommendations.push({
+                        id: 'rec-water-' + idx,
+                        type: 'style',
+                        description: `Канцеляризм: "${ww}"`,
+                        suggested_change: 'Заменить на более простую формулировку',
+                        position: idx
+                    });
+                }
+            });
+            result.water_percentage = words.length > 0 ? Math.min(100, Math.round((waterCount / words.length) * 100)) : 0;
+        }
+
+        // Длинные предложения (всегда, не зависит от выбранных функций)
+        sentences.forEach((sentence, idx) => {
+            const sentenceWords = sentence.trim().split(/\s+/).length;
+            if (sentenceWords > 20) {
+                const pos = text.indexOf(sentence.trim());
+                result.long_sentences.push({
+                    id: 'long-' + Date.now() + '-' + idx,
+                    text: sentence.trim(),
+                    position: pos,
+                    word_count: sentenceWords,
+                    suggestion: 'Разбейте на 2-3 коротких предложения'
+                });
+                result.recommendations.push({
+                    id: 'rec-long-' + idx,
+                    type: 'readability',
+                    description: `Слишком длинное предложение (${sentenceWords} слов)`,
+                    position: pos
+                });
+            }
+        });
+
+        // Переработка текста (заглушка)
+        if (selectedFunctions.rewrite) {
+            const styleNames = {
+                formal: 'официально-деловом',
+                journalistic: 'публицистическом',
+                scientific: 'научном',
+                colloquial: 'разговорном',
+                literary: 'художественном'
+            };
+            result.modified_text = `[Переработанный текст в ${styleNames[rewriteStyle] || 'нейтральном'} стиле]\n\n${text}`;
+        }
+
+        // Тональность (заглушка)
+        if (selectedFunctions.tone) {
+            result.tone = {
+                label: 'нейтральная',
+                confidence: 70
+            };
+        }
+
+        // Синтаксис (заглушка)
+        if (selectedFunctions.syntax) {
+            result.syntax = {
+                complex_count: 0,
+                issues: []
+            };
+        }
+
+        return result;
     },
     
     // Сохранение текста

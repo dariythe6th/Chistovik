@@ -194,3 +194,4 @@ if (typeof window !== 'undefined') {
     window.Components = Components;
     console.log('Components модуль загружен');
 }
+

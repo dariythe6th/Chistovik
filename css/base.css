@@ -8,41 +8,42 @@
 }
 
 :root {
-    /* Цветовая схема */
-    --primary-dark: #1e3c72;
-    --primary: #2a5298;
-    --primary-light: #3a6bb5;
-    --primary-bg: #e8f0fe;
+    /* Новая цветовая схема - фиолетовая */
+    --primary-dark: #5b21b6;
+    --primary: #7c3aed;
+    --primary-light: #8b5cf6;
+    --primary-bg: #f5f3ff;
     
-    --gray-50: #f7f9fc;
-    --gray-100: #f1f5f9;
-    --gray-200: #e2e8f0;
-    --gray-300: #cbd5e0;
-    --gray-400: #a0aec0;
-    --gray-500: #718096;
-    --gray-600: #4a5568;
-    --gray-700: #2d3748;
-    --gray-800: #1a202c;
+    --gray-50: #fafafa;
+    --gray-100: #f4f4f5;
+    --gray-200: #e4e4e7;
+    --gray-300: #d4d4d8;
+    --gray-400: #a1a1aa;
+    --gray-500: #71717a;
+    --gray-600: #52525b;
+    --gray-700: #3f3f46;
+    --gray-800: #27272a;
+    --gray-900: #18181b;
     
-    --success: #48bb78;
-    --success-light: #f0fdf4;
-    --warning: #ecc94b;
-    --warning-light: #fef3c7;
-    --error: #f56565;
-    --error-light: #fff5f5;
-    --info: #4299e1;
+    --success: #10b981;
+    --success-light: #ecfdf5;
+    --warning: #f59e0b;
+    --warning-light: #fffbeb;
+    --error: #ef4444;
+    --error-light: #fef2f2;
+    --info: #3b82f6;
     
     /* Тени */
-    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.05);
-    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.05);
-    --shadow-lg: 0 8px 20px rgba(0, 0, 0, 0.1);
-    --shadow-xl: 0 12px 28px rgba(0, 0, 0, 0.15);
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
     
     /* Скругления */
-    --radius-sm: 8px;
-    --radius-md: 12px;
-    --radius-lg: 16px;
-    --radius-xl: 20px;
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 14px;
+    --radius-xl: 18px;
     
     /* Анимации */
     --transition-fast: 0.15s ease;
@@ -55,23 +56,26 @@ body {
     background: var(--gray-50);
     color: var(--gray-800);
     line-height: 1.5;
+    font-size: 14px;
 }
 
 /* Типографика */
 h1 {
     font-size: 28px;
-    font-weight: 700;
+    font-weight: 600;
     color: var(--gray-800);
+    letter-spacing: -0.02em;
 }
 
 h2 {
     font-size: 20px;
     font-weight: 600;
     color: var(--gray-700);
+    letter-spacing: -0.01em;
 }
 
 h3 {
-    font-size: 18px;
+    font-size: 16px;
     font-weight: 600;
     color: var(--gray-700);
 }
@@ -102,9 +106,22 @@ h3 {
     50% { opacity: 0.5; }
 }
 
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
+
 /* Утилиты */
 .loading {
     animation: pulse 1.5s ease-in-out infinite;
+}
+
+.loading-spinner {
+    animation: spin 1s linear infinite;
 }
 
 /* Scrollbar */

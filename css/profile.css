@@ -1,0 +1,307 @@
+/* profile.css - Стили для страницы профиля */
+
+.profile-page {
+    max-width: 900px;
+    margin: 0 auto;
+}
+
+/* Заголовок страницы */
+.profile-header {
+    margin-bottom: 28px;
+}
+
+.profile-header h1 {
+    font-size: 26px;
+    font-weight: 600;
+    color: var(--gray-800);
+    letter-spacing: -0.02em;
+    margin-bottom: 6px;
+}
+
+.profile-subtitle {
+    font-size: 14px;
+    color: var(--gray-500);
+}
+
+/* Карточка профиля (информация о пользователе) */
+.profile-card {
+    background: white;
+    border-radius: var(--radius-xl);
+    border: 1px solid var(--gray-200);
+    padding: 28px 32px;
+    margin-bottom: 24px;
+    display: flex;
+    gap: 32px;
+    flex-wrap: wrap;
+    transition: box-shadow var(--transition-fast);
+}
+
+.profile-card:hover {
+    box-shadow: var(--shadow-md);
+}
+
+.profile-avatar {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+}
+
+.avatar-initials {
+    width: 96px;
+    height: 96px;
+    background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 32px;
+    font-weight: 600;
+    color: white;
+    box-shadow: var(--shadow-sm);
+}
+
+.avatar-edit-btn {
+    background: none;
+    border: none;
+    font-size: 12px;
+    color: var(--gray-500);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: var(--radius-md);
+    transition: all var(--transition-fast);
+}
+
+.avatar-edit-btn:hover {
+    background: var(--gray-100);
+    color: var(--gray-700);
+}
+
+.avatar-edit-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.profile-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+
+.info-row {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 12px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--gray-100);
+}
+
+.info-row:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.info-label {
+    width: 140px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--gray-500);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+.info-value {
+    flex: 1;
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--gray-800);
+}
+
+.info-edit-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 4px;
+    border-radius: var(--radius-sm);
+    color: var(--gray-400);
+    transition: all var(--transition-fast);
+}
+
+.info-edit-btn:hover {
+    background: var(--gray-100);
+    color: var(--primary);
+}
+
+/* Карточка статистики */
+.stats-card {
+    background: white;
+    border-radius: var(--radius-xl);
+    border: 1px solid var(--gray-200);
+    padding: 24px 32px;
+    margin-bottom: 24px;
+}
+
+.stats-card h2 {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--gray-700);
+    margin-bottom: 20px;
+    letter-spacing: -0.01em;
+}
+
+.stats-grid-profile {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+}
+
+.stat-item {
+    text-align: center;
+    padding: 16px;
+    background: var(--gray-50);
+    border-radius: var(--radius-lg);
+    transition: transform var(--transition-fast);
+}
+
+.stat-item:hover {
+    transform: translateY(-2px);
+}
+
+.stat-number {
+    font-size: 32px;
+    font-weight: 700;
+    color: var(--primary-dark);
+    margin-bottom: 6px;
+}
+
+.stat-label {
+    font-size: 12px;
+    color: var(--gray-500);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+/* Карточка действий */
+.actions-card {
+    background: white;
+    border-radius: var(--radius-xl);
+    border: 1px solid var(--gray-200);
+    padding: 24px 32px;
+    margin-bottom: 24px;
+}
+
+.actions-card h2 {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--gray-700);
+    margin-bottom: 20px;
+    letter-spacing: -0.01em;
+}
+
+.actions-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+}
+
+.action-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 24px;
+    border-radius: var(--radius-md);
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: all var(--transition-fast);
+    background: white;
+}
+
+.action-btn.primary {
+    background: var(--primary);
+    color: white;
+    border: none;
+}
+
+.action-btn.primary:hover {
+    background: var(--primary-dark);
+    transform: translateY(-1px);
+}
+
+.action-btn.secondary {
+    background: white;
+    border-color: var(--gray-200);
+    color: var(--gray-700);
+}
+
+.action-btn.secondary:hover {
+    background: var(--gray-50);
+    border-color: var(--gray-300);
+}
+
+.action-btn.danger {
+    background: white;
+    border-color: #fecaca;
+    color: var(--error);
+}
+
+.action-btn.danger:hover {
+    background: var(--error-light);
+    border-color: #fca5a5;
+}
+
+/* Демо-заметка в модалках */
+.demo-note {
+    color: var(--gray-500);
+    font-size: 14px;
+    text-align: center;
+    padding: 12px 0;
+}
+
+/* Responsive */
+@media (max-width: 700px) {
+    .profile-card {
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        padding: 24px;
+    }
+    
+    .info-row {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    
+    .info-label {
+        width: auto;
+    }
+    
+    .stats-grid-profile {
+        grid-template-columns: 1fr;
+        gap: 12px;
+    }
+    
+    .actions-buttons {
+        flex-direction: column;
+    }
+    
+    .action-btn {
+        justify-content: center;
+    }
+}
+
+@media (max-width: 480px) {
+    .profile-header h1 {
+        font-size: 22px;
+    }
+    
+    .stats-card, .actions-card, .profile-card {
+        padding: 20px;
+    }
+}
