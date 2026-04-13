@@ -57,9 +57,11 @@
             border-radius: var(--radius-md);
             font-weight: 600;
             cursor: pointer;
+            transition: all var(--transition-fast);
         }
         .auth-btn:hover {
             background: var(--primary-dark);
+            transform: translateY(-1px);
         }
         .auth-footer {
             text-align: center;
@@ -135,7 +137,8 @@
                 return;
             }
             
-            const result = Auth.register(name, email, password);
+            // Обычная регистрация (роль 'user')
+            const result = Auth.register(name, email, password, false);
             if (result.success) {
                 successDiv.textContent = 'Регистрация успешна! Перенаправляем на вход...';
                 successDiv.style.display = 'block';
