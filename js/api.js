@@ -156,12 +156,16 @@ const API = {
         };
     },
     
-    // Сохранение текста (без изменений)
     saveText: async (title, content) => {
         await new Promise(resolve => setTimeout(resolve, 500));
+        const currentUser = Auth.getCurrentUser();
+        if (!currentUser) {
+            throw new Error('Необходимо авторизоваться');
+        }
         const savedTexts = JSON.parse(localStorage.getItem('chistovik_history') || '[]');
         const newText = {
             id: Date.now().toString(),
+            userId: currentUser.id,
             title: title,
             content: content,
             saved_at: new Date().toISOString()
@@ -173,7 +177,10 @@ const API = {
     
     getHistory: async () => {
         await new Promise(resolve => setTimeout(resolve, 300));
-        return JSON.parse(localStorage.getItem('chistovik_history') || '[]');
+        const currentUser = Auth.getCurrentUser();
+        if (!currentUser) return [];
+        const allTexts = JSON.parse(localStorage.getItem('chistovik_history') || '[]');
+        return allTexts.filter(t => t.userId === currentUser.id);
     },
     
     deleteText: async (id) => {

@@ -11,6 +11,13 @@
 </head>
 
 <body>
+    <script src="../js/auth.js"></script>
+    <script>
+        if (!Auth.isAuthenticated()) {
+            window.location.href = 'login.html';
+        }
+    </script>
+
     <!-- Header -->
     <header class="header">
         <div class="logo">

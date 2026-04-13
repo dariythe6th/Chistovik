@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Регистрация — CHISTOVIK</title>
+    <link rel="stylesheet" href="../css/base.css">
+    <link rel="stylesheet" href="../css/components.css">
+    <style>
+        .auth-container {
+            max-width: 400px;
+            margin: 80px auto;
+            background: white;
+            border-radius: var(--radius-xl);
+            box-shadow: var(--shadow-lg);
+            padding: 32px;
+        }
+        .auth-title {
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            text-align: center;
+        }
+        .auth-subtitle {
+            text-align: center;
+            color: var(--gray-500);
+            margin-bottom: 28px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        .form-group label {
+            display: block;
+            font-size: 13px;
+            font-weight: 500;
+            margin-bottom: 6px;
+            color: var(--gray-700);
+        }
+        .form-group input {
+            width: 100%;
+            padding: 10px 14px;
+            border: 1px solid var(--gray-200);
+            border-radius: var(--radius-md);
+            font-size: 14px;
+        }
+        .form-group input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.1);
+        }
+        .auth-btn {
+            width: 100%;
+            padding: 12px;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: var(--radius-md);
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .auth-btn:hover {
+            background: var(--primary-dark);
+        }
+        .auth-footer {
+            text-align: center;
+            margin-top: 24px;
+            font-size: 14px;
+            color: var(--gray-500);
+        }
+        .auth-footer a {
+            color: var(--primary);
+            text-decoration: none;
+        }
+        .error-message {
+            background: var(--error-light);
+            color: var(--error);
+            padding: 10px;
+            border-radius: var(--radius-md);
+            font-size: 13px;
+            margin-bottom: 20px;
+            display: none;
+        }
+        .success-message {
+            background: var(--success-light);
+            color: var(--success);
+            padding: 10px;
+            border-radius: var(--radius-md);
+            font-size: 13px;
+            margin-bottom: 20px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="auth-container">
+        <div class="auth-title">Создать аккаунт</div>
+        <div class="auth-subtitle">Зарегистрируйтесь, чтобы сохранять тексты</div>
+        <div id="errorMsg" class="error-message"></div>
+        <div id="successMsg" class="success-message"></div>
+        <form id="registerForm">
+            <div class="form-group">
+                <label>Имя</label>
+                <input type="text" id="name" required placeholder="Анна Соколова">
+            </div>
+            <div class="form-group">
+                <label>Email</label>
+                <input type="email" id="email" required placeholder="example@mail.ru">
+            </div>
+            <div class="form-group">
+                <label>Пароль</label>
+                <input type="password" id="password" required placeholder="минимум 4 символа">
+            </div>
+            <button type="submit" class="auth-btn">Зарегистрироваться</button>
+        </form>
+        <div class="auth-footer">
+            Уже есть аккаунт? <a href="login.html">Войти</a>
+        </div>
+    </div>
+    <script src="../js/auth.js"></script>
+    <script>
+        const form = document.getElementById('registerForm');
+        const errorDiv = document.getElementById('errorMsg');
+        const successDiv = document.getElementById('successMsg');
+
+        form.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const name = document.getElementById('name').value.trim();
+            const email = document.getElementById('email').value.trim();
+            const password = document.getElementById('password').value;
+            
+            if (password.length < 4) {
+                errorDiv.textContent = 'Пароль должен быть не менее 4 символов';
+                errorDiv.style.display = 'block';
+                successDiv.style.display = 'none';
+                return;
+            }
+            
+            const result = Auth.register(name, email, password);
+            if (result.success) {
+                successDiv.textContent = 'Регистрация успешна! Перенаправляем на вход...';
+                successDiv.style.display = 'block';
+                errorDiv.style.display = 'none';
+                setTimeout(() => {
+                    window.location.href = 'login.html';
+                }, 1500);
+            } else {
+                errorDiv.textContent = result.error;
+                errorDiv.style.display = 'block';
+                successDiv.style.display = 'none';
+            }
+        });
+    </script>
+</body>
+</html>

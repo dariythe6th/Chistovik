@@ -1,287 +1,158 @@
-// Логика для страницы истории
+// history.js - работа с историей через API
 
 const HistoryPage = {
     allTexts: [],
-    filteredTexts: [],
+    filtered: [],
     
-    init() {
+    async init() {
+        if (!Auth.isAuthenticated()) return;
+        await this.loadHistory();
         this.bindEvents();
-        this.loadHistory();
-        
-        // Устанавливаем активную страницу в шапке
-        document.querySelectorAll('.nav-btn').forEach(btn => {
-            if (btn.getAttribute('href') === 'history.html') {
-                btn.classList.add('active');
-            }
-        });
-    },
-    
-    bindEvents() {
-        document.getElementById('refreshHistoryBtn')?.addEventListener('click', () => this.loadHistory());
-        document.getElementById('clearHistoryBtn')?.addEventListener('click', () => this.clearAllHistory());
-        document.getElementById('searchInput')?.addEventListener('input', (e) => this.filterHistory(e.target.value));
-        document.getElementById('sortSelect')?.addEventListener('change', (e) => this.sortHistory(e.target.value));
-        
-        // Модальное окно
-        const modal = document.getElementById('textDetailsModal');
-        document.querySelectorAll('.modal-close').forEach(btn => {
-            btn.addEventListener('click', () => this.closeModal());
-        });
-        modal.addEventListener('click', (e) => {
-            if (e.target === modal) this.closeModal();
-        });
     },
     
     async loadHistory() {
         try {
-            this.allTexts = await API.getHistory();
-            this.filteredTexts = [...this.allTexts];
+            this.allTexts = await API.getHistory(); // уже фильтрует по userId
+            this.filtered = [...this.allTexts];
             this.updateStats();
             this.renderList();
-        } catch (error) {
-            console.error('Ошибка загрузки истории:', error);
-            this.showError('Не удалось загрузить историю');
-        }
+        } catch(e) { console.error(e); }
     },
     
     updateStats() {
         const total = this.allTexts.length;
         document.getElementById('totalTextsCount').textContent = total;
-        
-        // Подсчёт за последнюю неделю
-        const oneWeekAgo = new Date();
-        oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
-        const lastWeekCount = this.allTexts.filter(t => new Date(t.saved_at) > oneWeekAgo).length;
-        document.getElementById('lastWeekCount').textContent = lastWeekCount;
-        
-        // Средняя читаемость (заглушка, т.к. в сохранённых нет этого поля)
-        // В реальности нужно было бы хранить результат анализа вместе с текстом
+        const weekAgo = Date.now() - 7*86400000;
+        const lastWeek = this.allTexts.filter(t => new Date(t.saved_at) > weekAgo).length;
+        document.getElementById('lastWeekCount').textContent = lastWeek;
+        // средняя читаемость - заглушка
         document.getElementById('avgReadability').textContent = '--';
-    },
-    
-    filterHistory(searchTerm) {
-        if (!searchTerm.trim()) {
-            this.filteredTexts = [...this.allTexts];
-        } else {
-            const term = searchTerm.toLowerCase();
-            this.filteredTexts = this.allTexts.filter(text => 
-                text.title.toLowerCase().includes(term) || 
-                text.content.toLowerCase().includes(term)
-            );
-        }
-        this.sortHistory(document.getElementById('sortSelect').value);
-    },
-    
-    sortHistory(sortType) {
-        switch(sortType) {
-            case 'date-desc':
-                this.filteredTexts.sort((a, b) => new Date(b.saved_at) - new Date(a.saved_at));
-                break;
-            case 'date-asc':
-                this.filteredTexts.sort((a, b) => new Date(a.saved_at) - new Date(b.saved_at));
-                break;
-            case 'title-asc':
-                this.filteredTexts.sort((a, b) => a.title.localeCompare(b.title));
-                break;
-            case 'title-desc':
-                this.filteredTexts.sort((a, b) => b.title.localeCompare(a.title));
-                break;
-        }
-        this.renderList();
     },
     
     renderList() {
         const container = document.getElementById('historyList');
-        const emptyState = document.getElementById('emptyHistory');
-        
-        if (this.filteredTexts.length === 0) {
+        const emptyDiv = document.getElementById('emptyHistory');
+        if (this.filtered.length === 0) {
             container.style.display = 'none';
-            emptyState.style.display = 'block';
+            emptyDiv.style.display = 'block';
             return;
         }
-        
         container.style.display = 'grid';
-        emptyState.style.display = 'none';
+        emptyDiv.style.display = 'none';
         
-        container.innerHTML = this.filteredTexts.map(text => `
+        container.innerHTML = this.filtered.map(text => `
             <div class="history-item" data-id="${text.id}">
                 <div class="history-item-header">
-                    <div class="history-title">
-                        <span>📄</span>
-                        ${this.escapeHtml(text.title)}
-                    </div>
+                    <div class="history-title">📄 ${this.escapeHtml(text.title)}</div>
                     <div class="history-date">${this.formatDate(text.saved_at)}</div>
                 </div>
-                <div class="history-preview">
-                    ${this.escapeHtml(text.content.substring(0, 150))}${text.content.length > 150 ? '...' : ''}
-                </div>
+                <div class="history-preview">${this.escapeHtml(text.content.substring(0, 150))}${text.content.length > 150 ? '…' : ''}</div>
                 <div class="history-meta">
                     <span class="history-meta-badge">📏 ${text.content.length} символов</span>
-                    <span class="history-meta-badge">📝 ${text.content.split(/\s+/).filter(w => w.length > 0).length} слов</span>
+                    <span class="history-meta-badge">📝 ${text.content.split(/\s+/).filter(w=>w).length} слов</span>
                 </div>
                 <div class="history-actions-buttons">
-                    <button class="history-action-btn primary" data-action="open" data-id="${text.id}">
-                        📖 Открыть
-                    </button>
-                    <button class="history-action-btn" data-action="details" data-id="${text.id}">
-                        🔍 Подробнее
-                    </button>
-                    <button class="history-action-btn danger" data-action="delete" data-id="${text.id}">
-                        🗑️ Удалить
-                    </button>
+                    <button class="history-action-btn primary" data-action="open" data-id="${text.id}">📖 Открыть</button>
+                    <button class="history-action-btn" data-action="details" data-id="${text.id}">🔍 Подробнее</button>
+                    <button class="history-action-btn danger" data-action="delete" data-id="${text.id}">🗑️ Удалить</button>
                 </div>
             </div>
         `).join('');
         
-        // Добавляем обработчики для кнопок
+        // Обработчики
         document.querySelectorAll('[data-action="open"]').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const id = btn.dataset.id;
-                this.openInEditor(id);
-            });
+            btn.addEventListener('click', (e) => { e.stopPropagation(); this.openInEditor(btn.dataset.id); });
         });
-        
         document.querySelectorAll('[data-action="details"]').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const id = btn.dataset.id;
-                this.showDetails(id);
-            });
+            btn.addEventListener('click', (e) => { e.stopPropagation(); this.showDetails(btn.dataset.id); });
         });
-        
         document.querySelectorAll('[data-action="delete"]').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const id = btn.dataset.id;
-                this.deleteText(id);
-            });
+            btn.addEventListener('click', (e) => { e.stopPropagation(); this.deleteText(btn.dataset.id); });
         });
-        
-        // Клик по карточке тоже открывает
         document.querySelectorAll('.history-item').forEach(card => {
-            card.addEventListener('click', (e) => {
-                if (!e.target.closest('[data-action]')) {
-                    const id = card.dataset.id;
-                    this.openInEditor(id);
-                }
-            });
+            card.addEventListener('click', () => { this.openInEditor(card.dataset.id); });
         });
+    },
+    
+    async deleteText(id) {
+        if (confirm('Удалить этот текст?')) {
+            await API.deleteText(id);
+            await this.loadHistory();
+            this.showToast('Текст удалён');
+        }
     },
     
     async openInEditor(id) {
         const text = this.allTexts.find(t => t.id === id);
         if (text) {
-            // Сохраняем в localStorage для передачи на главную страницу
-            localStorage.setItem('chistovik_open_text', JSON.stringify(text));
-            window.location.href = 'index.html';
+            localStorage.setItem('chistovik_open_text', JSON.stringify({ content: text.content }));
+            window.location.href = '../index.html';
         }
     },
     
     async showDetails(id) {
         const text = this.allTexts.find(t => t.id === id);
-        if (text) {
-            document.getElementById('detailsTitle').textContent = text.title;
-            document.getElementById('detailsDate').textContent = this.formatDate(text.saved_at);
-            document.getElementById('detailsStats').textContent = `${text.content.length} символов, ${text.content.split(/\s+/).filter(w => w.length > 0).length} слов`;
-            document.getElementById('detailsContent').textContent = text.content;
-            
-            const modal = document.getElementById('textDetailsModal');
-            modal.classList.add('active');
-            
-            // Обработчики для модального окна
-            document.getElementById('openInEditorBtn').onclick = () => {
-                this.closeModal();
-                this.openInEditor(id);
-            };
-            document.getElementById('deleteTextBtn').onclick = () => {
-                this.closeModal();
-                this.deleteText(id);
-            };
-        }
+        if (!text) return;
+        document.getElementById('detailsTitle').textContent = text.title;
+        document.getElementById('detailsDate').textContent = this.formatDate(text.saved_at);
+        document.getElementById('detailsStats').textContent = `${text.content.length} символов, ${text.content.split(/\s+/).filter(w=>w).length} слов`;
+        document.getElementById('detailsContent').textContent = text.content;
+        const modal = document.getElementById('textDetailsModal');
+        modal.classList.add('active');
+        document.getElementById('openInEditorBtn').onclick = () => { modal.classList.remove('active'); this.openInEditor(id); };
+        document.getElementById('deleteTextBtn').onclick = () => { modal.classList.remove('active'); this.deleteText(id); };
+        document.querySelectorAll('.modal-close').forEach(btn => {
+            btn.onclick = () => modal.classList.remove('active');
+        });
     },
     
-    async deleteText(id) {
-        if (confirm('Вы уверены, что хотите удалить этот текст?')) {
-            // Удаляем из локального хранилища
-            const updatedTexts = this.allTexts.filter(t => t.id !== id);
-            localStorage.setItem('chistovik_history', JSON.stringify(updatedTexts));
-            
-            // Обновляем состояние
-            this.allTexts = updatedTexts;
-            this.filteredTexts = [...this.allTexts];
-            this.updateStats();
-            this.renderList();
-            
-            this.showToast('Текст удалён');
-        }
-    },
-    
-    async clearAllHistory() {
-        if (confirm('Вы уверены, что хотите удалить ВСЮ историю? Это действие нельзя отменить.')) {
-            await API.clearHistory();
-            this.allTexts = [];
-            this.filteredTexts = [];
-            this.updateStats();
-            this.renderList();
-            this.showToast('История очищена');
-        }
-    },
-    
-    closeModal() {
-        document.getElementById('textDetailsModal').classList.remove('active');
-    },
-    
-    formatDate(dateString) {
-        const date = new Date(dateString);
-        const now = new Date();
-        const diffMs = now - date;
-        const diffMins = Math.floor(diffMs / 60000);
-        const diffHours = Math.floor(diffMs / 3600000);
-        const diffDays = Math.floor(diffMs / 86400000);
-        
-        if (diffMins < 1) return 'только что';
-        if (diffMins < 60) return `${diffMins} мин назад`;
-        if (diffHours < 24) return `${diffHours} ч назад`;
-        if (diffDays < 7) return `${diffDays} дн назад`;
-        
+    formatDate(iso) {
+        const date = new Date(iso);
+        const now = Date.now();
+        const diff = now - date;
+        if (diff < 60000) return 'только что';
+        if (diff < 3600000) return `${Math.floor(diff/60000)} мин назад`;
+        if (diff < 86400000) return `${Math.floor(diff/3600000)} ч назад`;
+        if (diff < 604800000) return `${Math.floor(diff/86400000)} дн назад`;
         return date.toLocaleDateString('ru-RU');
     },
     
-    escapeHtml(text) {
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
-    },
+    escapeHtml(str) { return str.replace(/[&<>]/g, function(m) { return { '&':'&amp;', '<':'&lt;', '>':'&gt;' }[m]; }); },
     
-    showToast(message) {
+    showToast(msg) {
         const toast = document.createElement('div');
-        toast.textContent = message;
-        toast.style.cssText = `
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            background: #1e3c72;
-            color: white;
-            padding: 12px 20px;
-            border-radius: 10px;
-            font-size: 14px;
-            z-index: 1000;
-            animation: slideIn 0.3s ease;
-        `;
+        toast.textContent = msg;
+        toast.style.cssText = 'position:fixed;bottom:20px;right:20px;background:#1e3c72;color:white;padding:12px 20px;border-radius:10px;z-index:1000;animation:slideIn 0.3s ease;';
         document.body.appendChild(toast);
-        setTimeout(() => {
-            toast.style.opacity = '0';
-            setTimeout(() => toast.remove(), 300);
-        }, 3000);
+        setTimeout(() => { toast.style.opacity='0'; setTimeout(()=>toast.remove(),300); }, 3000);
     },
     
-    showError(message) {
-        alert(message);
+    bindEvents() {
+        document.getElementById('refreshHistoryBtn')?.addEventListener('click', () => this.loadHistory());
+        document.getElementById('clearHistoryBtn')?.addEventListener('click', async () => {
+            if (confirm('Очистить всю историю?')) {
+                await API.clearHistory();
+                await this.loadHistory();
+                this.showToast('История очищена');
+            }
+        });
+        document.getElementById('searchInput')?.addEventListener('input', (e) => {
+            const term = e.target.value.toLowerCase();
+            this.filtered = this.allTexts.filter(t => t.title.toLowerCase().includes(term) || t.content.toLowerCase().includes(term));
+            this.renderList();
+        });
+        document.getElementById('sortSelect')?.addEventListener('change', (e) => {
+            const sort = e.target.value;
+            this.filtered.sort((a,b) => {
+                if (sort === 'date-desc') return new Date(b.saved_at) - new Date(a.saved_at);
+                if (sort === 'date-asc') return new Date(a.saved_at) - new Date(b.saved_at);
+                if (sort === 'title-asc') return a.title.localeCompare(b.title);
+                if (sort === 'title-desc') return b.title.localeCompare(a.title);
+                return 0;
+            });
+            this.renderList();
+        });
     }
 };
 
-// Запуск
-document.addEventListener('DOMContentLoaded', () => {
-    HistoryPage.init();
-});
+document.addEventListener('DOMContentLoaded', () => HistoryPage.init());

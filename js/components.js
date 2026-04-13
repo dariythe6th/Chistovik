@@ -21,6 +21,7 @@ const Components = {
         if (readabilityFill) readabilityFill.style.width = analysis.readability_score + '%';
         if (readabilityLevel) readabilityLevel.textContent = analysis.readability_level;
         
+        // Стиль (если есть элемент)
         const styleLabel = document.getElementById('styleLabel');
         if (styleLabel && analysis.style_label) {
             const styleLabels = { formal: 'Официальный', neutral: 'Нейтральный', informal: 'Разговорный' };
@@ -28,25 +29,23 @@ const Components = {
             styleLabel.className = 'style-badge ' + analysis.style_label;
         }
         
+        // Вода (если есть элементы)
         const waterPercentage = document.getElementById('waterPercentage');
         const waterFill = document.getElementById('waterFill');
         const waterWarning = document.getElementById('waterWarning');
         
-        if (waterPercentage) waterPercentage.textContent = analysis.water_percentage + '%';
-        if (waterFill) waterFill.style.width = analysis.water_percentage + '%';
+        if (waterPercentage) waterPercentage.textContent = (analysis.water_percentage || 0) + '%';
+        if (waterFill) waterFill.style.width = (analysis.water_percentage || 0) + '%';
         
         if (waterWarning) {
-            if (analysis.water_percentage > 30) {
-                waterWarning.textContent = 'Много "воды", текст можно сделать короче';
-            } else if (analysis.water_percentage > 15) {
-                waterWarning.textContent = 'Есть небольшие избыточности';
-            } else {
-                waterWarning.textContent = 'Текст чистый, без "воды"';
-            }
+            const wp = analysis.water_percentage || 0;
+            if (wp > 30) waterWarning.textContent = 'Много "воды", текст можно сделать короче';
+            else if (wp > 15) waterWarning.textContent = 'Есть небольшие избыточности';
+            else waterWarning.textContent = 'Текст чистый, без "воды"';
         }
     },
     
-    // Отображение рекомендаций - ИСПРАВЛЕНО: убрал function, добавил запятую
+    // Отображение рекомендаций (каждая ошибка/фраза – отдельный пункт)
     displayRecommendations: function(analysis) {
         const container = document.getElementById('recommendationsList');
         if (!container) return;
@@ -60,20 +59,13 @@ const Components = {
         for (const rec of analysis.recommendations) {
             let typeLabel = '';
             switch (rec.type) {
-                case 'spelling':
-                    typeLabel = 'Орфография';
-                    break;
-                case 'style':
-                    typeLabel = 'Стиль';
-                    break;
-                case 'water':
-                    typeLabel = 'Вода / канцеляризм';
-                    break;
-                case 'long_sentence':
-                    typeLabel = 'Длинное предложение';
-                    break;
-                default:
-                    typeLabel = 'Рекомендация';
+                case 'spelling': typeLabel = 'Орфография'; break;
+                case 'style': typeLabel = 'Стиль'; break;
+                case 'water': typeLabel = 'Вода / канцеляризм'; break;
+                case 'long_sentence': typeLabel = 'Длинное предложение'; break;
+                case 'tone': typeLabel = 'Тональность'; break;
+                case 'syntax': typeLabel = 'Синтаксис'; break;
+                default: typeLabel = 'Рекомендация';
             }
             html += `
                 <div class="recommendation-item" data-position="${rec.position || 0}">
@@ -85,6 +77,7 @@ const Components = {
         }
         container.innerHTML = html;
         
+        // Прокрутка к месту ошибки по клику
         document.querySelectorAll('.recommendation-item').forEach(el => {
             el.addEventListener('click', () => {
                 const pos = parseInt(el.dataset.position);
@@ -100,127 +93,60 @@ const Components = {
         });
     },
     
-    // Отображение результатов анализа
-    displayResults: function(analysis, selectedFunctions) {
+    // Отображение сводки во вкладке "Результаты анализа"
+    displayResultsSummary: function(summary, selectedFunctions) {
         const container = document.getElementById('resultsList');
         if (!container) return;
         
-        const results = [];
-        
-        if (selectedFunctions.spelling) {
-            const count = analysis.spelling_errors ? analysis.spelling_errors.length : 0;
-            results.push({
-                title: 'Орфографическая проверка',
-                content: count > 0 ? 'Найдено ошибок: ' + count : 'Орфографических ошибок не найдено',
-                details: count > 0 ? analysis.spelling_errors.map(function(e) { return e.word + ' → ' + e.suggestions.join(', '); }).join('; ') : ''
-            });
+        let html = '';
+        if (selectedFunctions.includes('spelling')) {
+            html += `<div class="result-item"><div class="result-title">Орфография</div><div class="result-content">Найдено ошибок: ${summary.spelling?.count || 0}</div></div>`;
+        }
+        if (selectedFunctions.includes('water')) {
+            html += `<div class="result-item"><div class="result-title">Вода и канцеляризмы</div><div class="result-content">Найдено фраз: ${summary.water?.count || 0}</div></div>`;
+        }
+        if (selectedFunctions.includes('long_sentences')) {
+            html += `<div class="result-item"><div class="result-title">Длинные предложения</div><div class="result-content">Найдено: ${summary.longSentences?.count || 0}</div></div>`;
+        }
+        if (selectedFunctions.includes('style') && summary.style?.label) {
+            html += `<div class="result-item"><div class="result-title">Стиль текста</div><div class="result-content">${summary.style.label}</div></div>`;
+        }
+        if (selectedFunctions.includes('tone') && summary.tone?.label) {
+            html += `<div class="result-item"><div class="result-title">Тональность</div><div class="result-content">${summary.tone.label}</div></div>`;
+        }
+        if (selectedFunctions.includes('syntax')) {
+            html += `<div class="result-item"><div class="result-title">Синтаксис</div><div class="result-content">Сложных конструкций: ${summary.syntax?.issuesCount || 0}</div></div>`;
         }
         
-        if (selectedFunctions.style) {
-            const styleLabels = { formal: 'Официальный', neutral: 'Нейтральный', informal: 'Разговорный' };
-            results.push({
-                title: 'Определение стиля текста',
-                content: 'Стиль: ' + (styleLabels[analysis.style_label] || analysis.style_label),
-                details: 'Уверенность: высокая'
-            });
+        if (html === '') {
+            html = '<div class="empty-state"><p>Выберите функции и нажмите «Анализировать»</p></div>';
         }
-        
-        if (selectedFunctions.water) {
-            results.push({
-                title: 'Поиск воды и канцеляризмов',
-                content: 'Вода составляет ' + analysis.water_percentage + '% текста',
-                details: analysis.water_phrases && analysis.water_phrases.length > 0 ? analysis.water_phrases.map(function(w) { return '"' + w.phrase + '" → ' + w.recommendation; }).join('; ') : 'Не найдено'
-            });
-        }
-        
-        if (selectedFunctions.rewrite && analysis.modified_text) {
-            results.push({
-                title: 'Переработка текста',
-                content: 'Текст переработан в выбранном стиле',
-                details: 'Изменённый текст отображается в правой колонке. Нажмите "Применить изменения", чтобы заменить исходный текст.'
-            });
-        }
-        
-        if (selectedFunctions.tone && analysis.tone) {
-            results.push({
-                title: 'Тональность текста',
-                content: 'Тональность: ' + (analysis.tone.label || 'нейтральная'),
-                details: 'Уверенность: ' + (analysis.tone.confidence || 70) + '%'
-            });
-        }
-        
-        if (selectedFunctions.syntax && analysis.syntax) {
-            results.push({
-                title: 'Анализ синтаксиса',
-                content: 'Сложных конструкций: ' + (analysis.syntax.complex_count || 0),
-                details: (analysis.syntax.issues && analysis.syntax.issues.length > 0) ? analysis.syntax.issues.join('; ') : 'Синтаксических проблем не обнаружено'
-            });
-        }
-        
-        if (results.length === 0) {
-            container.innerHTML = '<div class="empty-state"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#cbd5e0" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg><p>Выберите функции и нажмите «Анализировать»</p></div>';
-            return;
-        }
-        
-        container.innerHTML = results.map(function(result) {
-            return '<div class="result-item">' +
-                '<div class="result-title">' + result.title + '</div>' +
-                '<div class="result-content">' + result.content + '</div>' +
-                (result.details ? '<div class="result-sub">' + result.details + '</div>' : '') +
-                '</div>';
-        }).join('');
+        container.innerHTML = html;
     },
     
-    // Отображение истории
-    displayHistory: function(history) {
-        const container = document.getElementById('historyList');
-        if (!container) return;
-        
-        if (!history || history.length === 0) {
-            container.innerHTML = '<div class="empty-state"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#cbd5e0" stroke-width="1.5"><path d="M4 4v16h16V4H4z"/><path d="M8 9h8M8 13h6M8 17h4"/></svg><p>Нет сохранённых текстов</p><p style="font-size: 12px;">Проанализируйте текст и нажмите «Сохранить»</p></div>';
-            return;
-        }
-        
-        container.innerHTML = history.map(function(item) {
-            return '<div class="history-item" data-id="' + item.id + '">' +
-                '<div class="history-title"> ' + item.title + '</div>' +
-                '<div class="history-preview">' + (item.content.substring(0, 100) + (item.content.length > 100 ? '...' : '')) + '</div>' +
-                '<div class="history-date">' + new Date(item.saved_at).toLocaleString('ru-RU') + '</div>' +
-                '</div>';
-        }).join('');
-    },
-    
-    // Показать уведомление
-    showNotification: function(message, type) {
-        type = type || 'info';
-        const notification = document.createElement('div');
-        notification.textContent = message;
-        notification.className = 'toast ' + type;
-        document.body.appendChild(notification);
-        
-        setTimeout(function() {
-            notification.style.opacity = '0';
-            setTimeout(function() { notification.remove(); }, 300);
-        }, 3000);
-    },
-    
-    // Вспомогательная функция для экранирования HTML
+    // Утилиты
     escapeHtml: function(str) {
         if (!str) return '';
-        return str
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;')
-            .replace(/'/g, '&#39;');
+        return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    },
+    
+    showNotification: function(message, type) {
+        type = type || 'info';
+        const toast = document.createElement('div');
+        toast.textContent = message;
+        toast.className = 'toast ' + type;
+        document.body.appendChild(toast);
+        setTimeout(() => {
+            toast.style.opacity = '0';
+            setTimeout(() => toast.remove(), 300);
+        }, 3000);
     }
 };
 
 if (typeof window !== 'undefined') {
     window.Components = Components;
-    // Для удобства выносим основные функции в глобальную область
     window.displayRecommendations = Components.displayRecommendations.bind(Components);
-    window.displayResults = Components.displayResults.bind(Components);
+    window.displayResultsSummary = Components.displayResultsSummary.bind(Components);
     window.updateStats = Components.updateStats.bind(Components);
     window.showNotification = Components.showNotification.bind(Components);
     console.log('Components модуль загружен');
