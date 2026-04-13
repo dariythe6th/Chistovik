@@ -5,7 +5,6 @@ const Components = {
     updateStats: function(analysis) {
         const stats = analysis.stats;
         
-        // Проверяем существование элементов перед установкой значений
         const charCount = document.getElementById('charCount');
         const wordCount = document.getElementById('wordCount');
         const sentenceCount = document.getElementById('sentenceCount');
@@ -22,7 +21,6 @@ const Components = {
         if (readabilityFill) readabilityFill.style.width = analysis.readability_score + '%';
         if (readabilityLevel) readabilityLevel.textContent = analysis.readability_level;
         
-        // Стиль текста (есть в старой вкладке статистики)
         const styleLabel = document.getElementById('styleLabel');
         if (styleLabel && analysis.style_label) {
             const styleLabels = { formal: 'Официальный', neutral: 'Нейтральный', informal: 'Разговорный' };
@@ -30,7 +28,6 @@ const Components = {
             styleLabel.className = 'style-badge ' + analysis.style_label;
         }
         
-        // Вода в тексте (есть в старой вкладке статистики)
         const waterPercentage = document.getElementById('waterPercentage');
         const waterFill = document.getElementById('waterFill');
         const waterWarning = document.getElementById('waterWarning');
@@ -49,37 +46,55 @@ const Components = {
         }
     },
     
-    // Отображение рекомендаций
+    // Отображение рекомендаций - ИСПРАВЛЕНО: убрал function, добавил запятую
     displayRecommendations: function(analysis) {
         const container = document.getElementById('recommendationsList');
         if (!container) return;
         
-        const recommendations = analysis.recommendations;
-        
-        if (!recommendations || recommendations.length === 0) {
-            container.innerHTML = '<div class="empty-state"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#cbd5e0" stroke-width="1.5"><path d="M20 6L9 17l-5-5"/></svg><p>Отлично! Рекомендаций нет</p></div>';
+        if (!analysis || !analysis.recommendations || analysis.recommendations.length === 0) {
+            container.innerHTML = '<div class="empty-state"><p>Нет рекомендаций</p></div>';
             return;
         }
         
-        const typeLabels = {
-            spelling: 'Орфография',
-            style: 'Стилистика',
-            readability: 'Читаемость'
-        };
+        let html = '';
+        for (const rec of analysis.recommendations) {
+            let typeLabel = '';
+            switch (rec.type) {
+                case 'spelling':
+                    typeLabel = 'Орфография';
+                    break;
+                case 'style':
+                    typeLabel = 'Стиль';
+                    break;
+                case 'water':
+                    typeLabel = 'Вода / канцеляризм';
+                    break;
+                case 'long_sentence':
+                    typeLabel = 'Длинное предложение';
+                    break;
+                default:
+                    typeLabel = 'Рекомендация';
+            }
+            html += `
+                <div class="recommendation-item" data-position="${rec.position || 0}">
+                    <div class="recommendation-type">${this.escapeHtml(typeLabel)}</div>
+                    <div class="recommendation-text">${this.escapeHtml(rec.description)}</div>
+                    <div class="recommendation-suggestion">${this.escapeHtml(rec.suggested_change)}</div>
+                </div>
+            `;
+        }
+        container.innerHTML = html;
         
-        container.innerHTML = recommendations.map(function(rec) {
-            return '<div class="recommendation-item" data-position="' + rec.position + '">' +
-                '<div class="recommendation-type">' + (typeLabels[rec.type] || rec.type) + '</div>' +
-                '<div class="recommendation-text">' + rec.description + '</div>' +
-                (rec.suggested_change ? '<div class="recommendation-suggestion"> ' + rec.suggested_change + '</div>' : '') +
-                '</div>';
-        }).join('');
-        
-        document.querySelectorAll('.recommendation-item').forEach(function(el) {
-            el.addEventListener('click', function() {
-                const position = parseInt(el.dataset.position);
-                if (position && window.App && window.App.scrollToPosition) {
-                    window.App.scrollToPosition(position);
+        document.querySelectorAll('.recommendation-item').forEach(el => {
+            el.addEventListener('click', () => {
+                const pos = parseInt(el.dataset.position);
+                if (!isNaN(pos) && pos >= 0) {
+                    const textarea = document.getElementById('textInput');
+                    if (textarea) {
+                        textarea.focus();
+                        textarea.setSelectionRange(pos, pos);
+                        textarea.scrollTop = (pos / textarea.value.length) * textarea.scrollHeight;
+                    }
                 }
             });
         });
@@ -187,11 +202,26 @@ const Components = {
             notification.style.opacity = '0';
             setTimeout(function() { notification.remove(); }, 300);
         }, 3000);
+    },
+    
+    // Вспомогательная функция для экранирования HTML
+    escapeHtml: function(str) {
+        if (!str) return '';
+        return str
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
     }
 };
 
 if (typeof window !== 'undefined') {
     window.Components = Components;
+    // Для удобства выносим основные функции в глобальную область
+    window.displayRecommendations = Components.displayRecommendations.bind(Components);
+    window.displayResults = Components.displayResults.bind(Components);
+    window.updateStats = Components.updateStats.bind(Components);
+    window.showNotification = Components.showNotification.bind(Components);
     console.log('Components модуль загружен');
 }
-

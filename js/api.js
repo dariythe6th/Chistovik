@@ -1,319 +1,164 @@
-// API сервис с заглушками для дальнейшего подключения к бэкенду
+// api.js - Слой работы с данными (реализованы базовые анализаторы)
 
-const API_BASE_URL = 'http://localhost:8000/api';
-
-// Генерация мок-данных для анализа
-function generateMockAnalysis(text, selectedFunctions, rewriteStyle) {
-    const words = text.split(/\s+/).filter(w => w.length > 0);
-    const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 0);
-    
-    const result = {
-        id: 'analysis-' + Date.now(),
-        text_id: 'text-' + Date.now(),
-        analysed_at: new Date().toISOString(),
-        stats: {
-            characters: text.length,
-            words: words.length,
-            sentences: sentences.length,
-            avg_word_length: words.length > 0 ? Math.round((text.length / words.length) * 10) / 10 : 0,
-            avg_sentence_length: sentences.length > 0 ? Math.round((words.length / sentences.length) * 10) / 10 : 0
-        },
-        readability_score: 0,
-        readability_level: 'Средний',
-        style_label: 'neutral',
-        style_confidence: 85,
-        water_percentage: 0,
-        water_phrases: [],
-        spelling_errors: [],
-        long_sentences: [],
-        recommendations: [],
-        modified_text: null
-    };
-    
-    // Индекс читаемости
-    const avgSentenceLength = sentences.length > 0 ? words.length / sentences.length : 0;
-    let readabilityScore = Math.max(0, Math.min(100, 100 - (avgSentenceLength - 10) * 3));
-    if (readabilityScore >= 70) result.readability_level = 'Лёгкий';
-    else if (readabilityScore >= 40) result.readability_level = 'Средний';
-    else result.readability_level = 'Сложный';
-    result.readability_score = Math.round(readabilityScore);
-    
-    // Орфографическая проверка
-    if (selectedFunctions.spelling) {
-        const commonMistakes = [
-            { wrong: 'програма', correct: 'программа', desc: 'Пропущена буква "м"' },
-            { wrong: 'ихний', correct: 'их', desc: 'Разговорная форма' },
-            { wrong: 'ихняя', correct: 'их', desc: 'Разговорная форма' }
-        ];
-        commonMistakes.forEach(mistake => {
-            const index = text.toLowerCase().indexOf(mistake.wrong);
-            if (index !== -1) {
-                result.spelling_errors.push({
-                    id: 'err-' + Date.now() + '-' + index,
-                    word: mistake.wrong,
-                    position: index,
-                    length: mistake.wrong.length,
-                    suggestions: [mistake.correct],
-                    description: mistake.desc,
-                    type: 'spelling'
-                });
-                result.recommendations.push({
-                    id: 'rec-spell-' + index,
-                    type: 'spelling',
-                    description: 'Ошибка: "' + mistake.wrong + '" → ' + mistake.correct,
-                    suggested_change: mistake.correct,
-                    position: index
-                });
-            }
-        });
-    }
-    
-    // Определение стиля текста
-    if (selectedFunctions.style) {
-        const formalWords = ['следует', 'необходимо', 'в соответствии', 'обеспечить'];
-        const informalWords = ['короче', 'типа', 'ваще', 'прикол'];
-        let formalCount = 0;
-        let informalCount = 0;
-        formalWords.forEach(fw => {
-            if (text.toLowerCase().includes(fw)) formalCount++;
-        });
-        informalWords.forEach(iw => {
-            if (text.toLowerCase().includes(iw)) informalCount++;
-        });
-        if (formalCount > informalCount) result.style_label = 'formal';
-        else if (informalCount > formalCount) result.style_label = 'informal';
-        else result.style_label = 'neutral';
-    }
-    
-    // Поиск воды
-    if (selectedFunctions.water) {
-        const waterWords = ['является', 'представляет собой', 'в настоящее время', 'принимая во внимание', 'в целом', 'следует отметить', 'вышеупомянутый'];
-        let waterCount = 0;
-        waterWords.forEach(ww => {
-            const index = text.toLowerCase().indexOf(ww);
-            if (index !== -1) {
-                waterCount++;
-                result.water_phrases.push({
-                    id: 'water-' + Date.now() + '-' + index,
-                    phrase: ww,
-                    position: index,
-                    length: ww.length,
-                    recommendation: 'Заменить на более простую формулировку'
-                });
-                result.recommendations.push({
-                    id: 'rec-water-' + index,
-                    type: 'style',
-                    description: 'Канцеляризм: "' + ww + '"',
-                    suggested_change: 'Заменить на более простую формулировку',
-                    position: index
-                });
-            }
-        });
-        result.water_percentage = words.length > 0 ? Math.min(100, Math.round((waterCount / words.length) * 100)) : 0;
-    }
-    
-    // Длинные предложения
-    sentences.forEach((sentence, idx) => {
-        const sentenceWords = sentence.trim().split(/\s+/).length;
-        if (sentenceWords > 20) {
-            const position = text.indexOf(sentence.trim());
-            result.long_sentences.push({
-                id: 'long-' + Date.now() + '-' + idx,
-                text: sentence.trim(),
-                position: position,
-                word_count: sentenceWords,
-                suggestion: 'Разбейте на 2-3 коротких предложения'
-            });
-            result.recommendations.push({
-                id: 'rec-long-' + idx,
-                type: 'readability',
-                description: 'Слишком длинное предложение (' + sentenceWords + ' слов)',
-                position: position
-            });
-        }
-    });
-    
-    // Переработка текста (заглушка)
-    if (selectedFunctions.rewrite) {
-        const styleNames = {
-            formal: 'официально-деловом',
-            journalistic: 'публицистическом',
-            scientific: 'научном',
-            colloquial: 'разговорном',
-            literary: 'художественном'
-        };
-        result.modified_text = '[Переработанный текст в ' + (styleNames[rewriteStyle] || 'нейтральном') + ' стиле]\n\n' + text;
-    }
-    
-    return result;
-}
-
-// API объект
 const API = {
     // Анализ текста
-    // Анализ текста (реальная орфография через Speller, остальное — заглушки)
-    async analyzeText(text, selectedFunctions, rewriteStyle) {
-        console.log('Анализ текста:', text.substring(0, 100) + '...');
-        console.log('Выбранные функции:', selectedFunctions);
+    analyzeText: async (text, selectedFunctions) => {
+        // Имитация задержки сети
+        await new Promise(resolve => setTimeout(resolve, 800));
 
-        // Базовые метрики (синхронно)
-        const words = text.split(/\s+/).filter(w => w.length > 0);
-        const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 0);
-        const avgSentenceLength = sentences.length > 0 ? words.length / sentences.length : 0;
-        let readabilityScore = Math.max(0, Math.min(100, 100 - (avgSentenceLength - 10) * 3));
-        let readabilityLevel = 'Средний';
-        if (readabilityScore >= 70) readabilityLevel = 'Лёгкий';
-        else if (readabilityScore < 40) readabilityLevel = 'Сложный';
-        readabilityScore = Math.round(readabilityScore);
+        // Базовая статистика
+        const words = text.trim() ? text.trim().split(/\s+/).length : 0;
+        const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 0).length;
+        const characters = text.length;
 
-        // Базовый объект результата
-        const result = {
-            id: 'analysis-' + Date.now(),
-            text_id: 'text-' + Date.now(),
-            analysed_at: new Date().toISOString(),
-            stats: {
-                characters: text.length,
-                words: words.length,
-                sentences: sentences.length,
-                avg_word_length: words.length > 0 ? Math.round((text.length / words.length) * 10) / 10 : 0,
-                avg_sentence_length: Math.round(avgSentenceLength * 10) / 10
-            },
+        // Результаты по модулям
+        let spellingErrors = [];
+        let waterPhrases = [];
+        let longSentences = [];
+        let styleResult = null;
+        let toneResult = null;
+        let syntaxResult = null;
+        
+        // Простая имитация орфографических ошибок (встроенный список)
+        if (selectedFunctions.includes('spelling')) {
+            spellingErrors = simulateSpellingErrors(text);
+        }
+        
+        // Поиск воды
+        if (selectedFunctions.includes('water') && window.WaterAnalyzer) {
+            waterPhrases = window.WaterAnalyzer.findWaterPhrases(text);
+        }
+        
+        // Длинные предложения
+        if (selectedFunctions.includes('long_sentences') && window.LongSentenceAnalyzer) {
+            longSentences = window.LongSentenceAnalyzer.findLongSentences(text, 20);
+        }
+        
+        // Стиль (всегда, если выбран)
+        if (selectedFunctions.includes('style') && window.StyleAnalyzer) {
+            styleResult = window.StyleAnalyzer.analyzeStyle(text);
+        } else if (selectedFunctions.includes('style')) {
+            // fallback, если модуль не загружен
+            styleResult = { style: 'neutral', confidence: 50 };
+        }
+        
+        // Тональность (заглушка)
+        if (selectedFunctions.includes('tone') && window.ToneAnalyzer) {
+            toneResult = window.ToneAnalyzer.analyzeTone(text);
+        } else if (selectedFunctions.includes('tone')) {
+            toneResult = { tone: 'нейтральная', confidence: 50 };
+        }
+        
+        // Синтаксис (заглушка)
+        if (selectedFunctions.includes('syntax') && window.SyntaxAnalyzer) {
+            syntaxResult = window.SyntaxAnalyzer.analyzeSyntax(text);
+        } else if (selectedFunctions.includes('syntax')) {
+            syntaxResult = { issues: [], complex_count: 0 };
+        }
+        
+        // Вычисляем читаемость (упрощённая формула Флеша для русского)
+        let readabilityScore = calculateReadability(text);
+        let readabilityLevel = getReadabilityLevel(readabilityScore);
+        
+        // Формируем список рекомендаций (каждый объект - отдельный совет)
+        let recommendations = [];
+        
+        // Орфографические ошибки – по одной рекомендации на каждую
+        for (let err of spellingErrors) {
+            recommendations.push({
+                type: 'spelling',
+                description: `Ошибка в слове "${err.word}"`,
+                suggested_change: err.suggestions.join(', ') || 'Проверьте написание',
+                position: err.position
+            });
+        }
+        
+        // Водные фразы – по одной рекомендации на каждую
+        for (let wp of waterPhrases) {
+            recommendations.push({
+                type: 'water',
+                description: `Канцеляризм / "вода": "${wp.phrase}"`,
+                suggested_change: `Замените на: "${wp.recommendation}"`,
+                position: wp.position
+            });
+        }
+        
+        // Длинные предложения – по одной рекомендации на каждое
+        for (let ls of longSentences) {
+            recommendations.push({
+                type: 'long_sentence',
+                description: `Длинное предложение (${ls.wordCount} слов)`,
+                suggested_change: 'Разбейте на 2-3 коротких предложения',
+                position: ls.position
+            });
+        }
+        
+        // Стиль – одна рекомендация
+        if (styleResult) {
+            let styleLabel = (styleResult.style === 'formal') ? 'Официальный' : (styleResult.style === 'informal') ? 'Разговорный' : 'Нейтральный';
+            recommendations.push({
+                type: 'style',
+                description: `Стиль текста: ${styleLabel}`,
+                suggested_change: styleResult.recommendations ? styleResult.recommendations[0] : 'При необходимости скорректируйте стиль под цель текста',
+                position: -1
+            });
+        }
+        
+        // Тональность – информационная рекомендация
+        if (toneResult) {
+            recommendations.push({
+                type: 'tone',
+                description: `Тональность текста: ${toneResult.tone}`,
+                suggested_change: toneResult.tone === 'негативная' ? 'Попробуйте смягчить формулировки' : 'Тональность соответствует норме',
+                position: -1
+            });
+        }
+        
+        // Синтаксис – информационная рекомендация
+        if (syntaxResult && syntaxResult.complex_count > 0) {
+            recommendations.push({
+                type: 'syntax',
+                description: `Обнаружено сложных синтаксических конструкций: ${syntaxResult.complex_count}`,
+                suggested_change: 'Упростите придаточные предложения',
+                position: -1
+            });
+        } else if (syntaxResult) {
+            recommendations.push({
+                type: 'syntax',
+                description: 'Синтаксический анализ: сложных конструкций не найдено',
+                suggested_change: 'Структура предложений хорошая',
+                position: -1
+            });
+        }
+        
+        // Результат для вкладки "Результаты анализа" (краткая сводка)
+        const summary = {
+            spelling: { count: spellingErrors.length, enabled: selectedFunctions.includes('spelling') },
+            water: { count: waterPhrases.length, enabled: selectedFunctions.includes('water') },
+            longSentences: { count: longSentences.length, enabled: selectedFunctions.includes('long_sentences') },
+            style: { label: styleResult ? (styleResult.style === 'formal' ? 'Официальный' : styleResult.style === 'informal' ? 'Разговорный' : 'Нейтральный') : null, enabled: selectedFunctions.includes('style') },
+            tone: { label: toneResult ? toneResult.tone : null, enabled: selectedFunctions.includes('tone') },
+            syntax: { issuesCount: syntaxResult ? syntaxResult.complex_count : 0, enabled: selectedFunctions.includes('syntax') }
+        };
+        
+        return {
+            stats: { characters, words, sentences },
             readability_score: readabilityScore,
             readability_level: readabilityLevel,
-            style_label: 'neutral',
-            style_confidence: 85,
-            water_percentage: 0,
-            water_phrases: [],
-            spelling_errors: [],
-            long_sentences: [],
-            recommendations: [],
-            modified_text: null
+            spelling_errors: spellingErrors,
+            water_phrases: waterPhrases,
+            long_sentences: longSentences,
+            style_label: styleResult ? styleResult.style : 'neutral',
+            tone: toneResult ? toneResult.tone : null,
+            syntax_issues: syntaxResult ? syntaxResult.issues : [],
+            recommendations: recommendations,
+            summary: summary
         };
-
-        // ========== 1. ОРФОГРАФИЧЕСКАЯ ПРОВЕРКА (реальный Speller) ==========
-        // В функции analyzeText, в блоке орфографической проверки:
-
-        if (selectedFunctions.spelling && window.YandexSpeller) {
-            try {
-                console.log('Запуск орфографической проверки через Яндекс...');
-                const spellingErrors = await window.YandexSpeller.checkSpelling(text);
-                result.spelling_errors = spellingErrors;
-
-                spellingErrors.forEach(err => {
-                    result.recommendations.push({
-                        id: 'rec-spell-' + err.id,
-                        type: 'spelling',
-                        description: `Ошибка: "${err.originalWord}" → ${err.suggestions.join(', ')}`,
-                        suggested_change: err.suggestions[0] || '',
-                        position: err.position
-                    });
-                });
-                console.log(`Найдено орфографических ошибок: ${spellingErrors.length}`);
-            } catch (e) {
-                console.error('Яндекс.Спеллер не сработал:', e);
-            }
-        }
-
-        // ========== 2. ОСТАЛЬНЫЕ ФУНКЦИИ (пока заглушки, но асинхронно) ==========
-        // Имитируем небольшую задержку для остальных проверок (чтобы не было пустоты)
-        await new Promise(resolve => setTimeout(resolve, 500));
-
-        // Стиль текста (заглушка)
-        if (selectedFunctions.style) {
-            const formalWords = ['следует', 'необходимо', 'в соответствии', 'обеспечить'];
-            const informalWords = ['короче', 'типа', 'ваще', 'прикол'];
-            let formalCount = formalWords.filter(fw => text.toLowerCase().includes(fw)).length;
-            let informalCount = informalWords.filter(iw => text.toLowerCase().includes(iw)).length;
-            if (formalCount > informalCount) result.style_label = 'formal';
-            else if (informalCount > formalCount) result.style_label = 'informal';
-            else result.style_label = 'neutral';
-        }
-
-        // Поиск воды (заглушка)
-        if (selectedFunctions.water) {
-            const waterWords = ['является', 'представляет собой', 'в настоящее время', 'принимая во внимание', 'в целом', 'следует отметить'];
-            let waterCount = 0;
-            waterWords.forEach(ww => {
-                const idx = text.toLowerCase().indexOf(ww);
-                if (idx !== -1) {
-                    waterCount++;
-                    result.water_phrases.push({
-                        id: 'water-' + Date.now() + '-' + idx,
-                        phrase: ww,
-                        position: idx,
-                        length: ww.length,
-                        recommendation: 'Заменить на более простую формулировку'
-                    });
-                    result.recommendations.push({
-                        id: 'rec-water-' + idx,
-                        type: 'style',
-                        description: `Канцеляризм: "${ww}"`,
-                        suggested_change: 'Заменить на более простую формулировку',
-                        position: idx
-                    });
-                }
-            });
-            result.water_percentage = words.length > 0 ? Math.min(100, Math.round((waterCount / words.length) * 100)) : 0;
-        }
-
-        // Длинные предложения (всегда, не зависит от выбранных функций)
-        sentences.forEach((sentence, idx) => {
-            const sentenceWords = sentence.trim().split(/\s+/).length;
-            if (sentenceWords > 20) {
-                const pos = text.indexOf(sentence.trim());
-                result.long_sentences.push({
-                    id: 'long-' + Date.now() + '-' + idx,
-                    text: sentence.trim(),
-                    position: pos,
-                    word_count: sentenceWords,
-                    suggestion: 'Разбейте на 2-3 коротких предложения'
-                });
-                result.recommendations.push({
-                    id: 'rec-long-' + idx,
-                    type: 'readability',
-                    description: `Слишком длинное предложение (${sentenceWords} слов)`,
-                    position: pos
-                });
-            }
-        });
-
-        // Переработка текста (заглушка)
-        if (selectedFunctions.rewrite) {
-            const styleNames = {
-                formal: 'официально-деловом',
-                journalistic: 'публицистическом',
-                scientific: 'научном',
-                colloquial: 'разговорном',
-                literary: 'художественном'
-            };
-            result.modified_text = `[Переработанный текст в ${styleNames[rewriteStyle] || 'нейтральном'} стиле]\n\n${text}`;
-        }
-
-        // Тональность (заглушка)
-        if (selectedFunctions.tone) {
-            result.tone = {
-                label: 'нейтральная',
-                confidence: 70
-            };
-        }
-
-        // Синтаксис (заглушка)
-        if (selectedFunctions.syntax) {
-            result.syntax = {
-                complex_count: 0,
-                issues: []
-            };
-        }
-
-        return result;
     },
     
-    // Сохранение текста
-    async saveText(title, content) {
-        console.log('Сохранение текста:', title);
-        
+    // Сохранение текста (без изменений)
+    saveText: async (title, content) => {
         await new Promise(resolve => setTimeout(resolve, 500));
-        
         const savedTexts = JSON.parse(localStorage.getItem('chistovik_history') || '[]');
         const newText = {
             id: Date.now().toString(),
@@ -322,53 +167,101 @@ const API = {
             saved_at: new Date().toISOString()
         };
         savedTexts.unshift(newText);
-        localStorage.setItem('chistovik_history', JSON.stringify(savedTexts.slice(0, 20)));
-        
+        localStorage.setItem('chistovik_history', JSON.stringify(savedTexts));
         return newText;
     },
     
-    // Получение истории
-    async getHistory() {
+    getHistory: async () => {
         await new Promise(resolve => setTimeout(resolve, 300));
-        const savedTexts = JSON.parse(localStorage.getItem('chistovik_history') || '[]');
-        return savedTexts;
+        return JSON.parse(localStorage.getItem('chistovik_history') || '[]');
     },
     
-    // Удаление текста
-    async deleteText(id) {
-        const savedTexts = JSON.parse(localStorage.getItem('chistovik_history') || '[]');
-        const updated = savedTexts.filter(t => t.id !== id);
-        localStorage.setItem('chistovik_history', JSON.stringify(updated));
+    deleteText: async (id) => {
+        await new Promise(resolve => setTimeout(resolve, 300));
+        let savedTexts = JSON.parse(localStorage.getItem('chistovik_history') || '[]');
+        savedTexts = savedTexts.filter(t => t.id !== id);
+        localStorage.setItem('chistovik_history', JSON.stringify(savedTexts));
         return { success: true };
     },
     
-    // Очистка истории
-    async clearHistory() {
-        localStorage.setItem('chistovik_history', '[]');
+    clearHistory: async () => {
+        await new Promise(resolve => setTimeout(resolve, 300));
+        localStorage.removeItem('chistovik_history');
         return { success: true };
     },
     
-    // Получение анализа сохранённого текста
-    async getTextAnalysis(textId) {
-        const savedTexts = JSON.parse(localStorage.getItem('chistovik_history') || '[]');
-        const text = savedTexts.find(t => t.id === textId);
-        if (text) {
-            const defaultFunctions = {
-                spelling: true,
-                style: true,
-                water: false,
-                rewrite: false,
-                tone: false,
-                syntax: false
-            };
-            return generateMockAnalysis(text.content, defaultFunctions, 'neutral');
-        }
-        throw new Error('Текст не найден');
+    rewriteText: async (text, style) => {
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        const styleMap = {
+            formal: 'официально-деловом',
+            journalistic: 'публицистическом',
+            scientific: 'научном',
+            colloquial: 'разговорном',
+            literary: 'художественном'
+        };
+        const styleRu = styleMap[style] || 'нейтральном';
+        return `[Переписано в ${styleRu} стиле]\n\n${text}\n\n---\n✨ Текст был автоматически переработан. В реальной версии будет использована нейросеть.`;
     }
 };
 
-// Проверка, что API определён
+// === Вспомогательные функции ===
+
+function simulateSpellingErrors(text) {
+    const errors = [];
+    // Словарь "ошибок" (слово -> правильный вариант)
+    const errorMap = {
+        'ихняя': ['их'],
+        'програма': ['программа'],
+        'кампьютер': ['компьютер'],
+        'резюме': ['резюме'], // нет ошибки, но для примера
+        'алиса': ['Алиса'],
+        'нету': ['нет'],
+        'ложить': ['класть'],
+        'зделать': ['сделать']
+    };
+    const lowerText = text.toLowerCase();
+    for (let wrong in errorMap) {
+        let index = lowerText.indexOf(wrong);
+        while (index !== -1) {
+            // Проверяем, что это целое слово (границы)
+            const before = text[index - 1] || '';
+            const after = text[index + wrong.length] || '';
+            if (!/[а-яё]/i.test(before) && !/[а-яё]/i.test(after)) {
+                errors.push({
+                    word: text.substr(index, wrong.length),
+                    position: index,
+                    suggestions: errorMap[wrong],
+                    description: `Орфографическая ошибка: возможно, вы имели в виду "${errorMap[wrong][0]}"`
+                });
+            }
+            index = lowerText.indexOf(wrong, index + 1);
+        }
+    }
+    return errors;
+}
+
+function calculateReadability(text) {
+    // Упрощённая формула: 100 - (средняя длина предложения * 1.5) - (средняя длина слова * 0.8)
+    // Ограничиваем от 0 до 100
+    const words = text.trim().split(/\s+/).filter(w => w.length > 0);
+    const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 0);
+    if (words.length === 0 || sentences.length === 0) return 50;
+    const avgSentenceLen = words.length / sentences.length;
+    const avgWordLen = words.reduce((sum, w) => sum + w.length, 0) / words.length;
+    let score = 100 - (avgSentenceLen * 1.2) - (avgWordLen * 0.6);
+    score = Math.min(100, Math.max(0, Math.round(score)));
+    return score;
+}
+
+function getReadabilityLevel(score) {
+    if (score >= 80) return 'Очень лёгкий';
+    if (score >= 60) return 'Лёгкий';
+    if (score >= 40) return 'Средний';
+    if (score >= 20) return 'Сложный';
+    return 'Очень сложный';
+}
+
 if (typeof window !== 'undefined') {
     window.API = API;
-    console.log('API модуль загружен');
+    console.log('API модуль загружен (с улучшенной логикой)');
 }

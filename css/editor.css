@@ -581,3 +581,9 @@
         padding: 16px;
     }
 }
+
+.long-sentence-highlight {
+    background-color: var(--warning-light);
+    border-bottom: 1px dashed var(--warning);
+    cursor: pointer;
+}
