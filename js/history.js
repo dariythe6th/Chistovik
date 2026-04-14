@@ -43,18 +43,18 @@ const HistoryPage = {
         container.innerHTML = this.filtered.map(text => `
             <div class="history-item" data-id="${text.id}">
                 <div class="history-item-header">
-                    <div class="history-title">📄 ${this.escapeHtml(text.title)}</div>
+                    <div class="history-title"> ${this.escapeHtml(text.title)}</div>
                     <div class="history-date">${this.formatDate(text.saved_at)}</div>
                 </div>
                 <div class="history-preview">${this.escapeHtml(text.content.substring(0, 150))}${text.content.length > 150 ? '…' : ''}</div>
                 <div class="history-meta">
-                    <span class="history-meta-badge">📏 ${text.content.length} символов</span>
-                    <span class="history-meta-badge">📝 ${text.content.split(/\s+/).filter(w=>w).length} слов</span>
+                    <span class="history-meta-badge"> ${text.content.length} символов</span>
+                    <span class="history-meta-badge"> ${text.content.split(/\s+/).filter(w=>w).length} слов</span>
                 </div>
                 <div class="history-actions-buttons">
-                    <button class="history-action-btn primary" data-action="open" data-id="${text.id}">📖 Открыть</button>
-                    <button class="history-action-btn" data-action="details" data-id="${text.id}">🔍 Подробнее</button>
-                    <button class="history-action-btn danger" data-action="delete" data-id="${text.id}">🗑️ Удалить</button>
+                    <button class="history-action-btn primary" data-action="open" data-id="${text.id}"> Открыть</button>
+                    <button class="history-action-btn" data-action="details" data-id="${text.id}"> Подробнее</button>
+                    <button class="history-action-btn danger" data-action="delete" data-id="${text.id}"> Удалить</button>
                 </div>
             </div>
         `).join('');
