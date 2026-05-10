@@ -1,0 +1,39 @@
+services:
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: chistovik
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - chistovik-net
+
+  backend:
+    build: ./backend
+    depends_on:
+      - db
+    environment:
+      DATABASE_URL: postgresql://user:password@db:5432/chistovik
+      SECRET_KEY: supersecretkey
+    networks:
+      - chistovik-net
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    ports:
+      - "8080:80"
+      - "8443:443"
+    depends_on:
+      - backend
+    networks:
+      - chistovik-net
+
+volumes:
+  pgdata:
+
+networks:
+  chistovik-net:
