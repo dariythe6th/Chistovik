@@ -1,6 +1,9 @@
-// Компоненты для управления интерфейсом
+// components.js – Компоненты интерфейса
 
 const Components = {
+    // Ссылка на активный tooltip
+    activeTooltip: null,
+
     // Обновление статистики
     updateStats: function(analysis) {
         const stats = analysis.stats;
@@ -44,7 +47,7 @@ const Components = {
         }
     },
     
-    // Отображение рекомендаций (каждая ошибка/фраза – отдельный пункт)
+    // Отображение рекомендаций с новым обработчиком
     displayRecommendations: function(analysis) {
         const container = document.getElementById('recommendationsList');
         if (!container) return;
@@ -67,7 +70,7 @@ const Components = {
                 default: typeLabel = 'Рекомендация';
             }
             html += `
-                <div class="recommendation-item" data-position="${rec.position || 0}">
+                <div class="recommendation-item" data-position="${rec.position || 0}" data-type="${rec.type}" data-description="${this.escapeHtml(rec.description)}" data-suggestion="${this.escapeHtml(rec.suggested_change)}">
                     <div class="recommendation-type">${this.escapeHtml(typeLabel)}</div>
                     <div class="recommendation-text">${this.escapeHtml(rec.description)}</div>
                     <div class="recommendation-suggestion">${this.escapeHtml(rec.suggested_change)}</div>
@@ -76,20 +79,137 @@ const Components = {
         }
         container.innerHTML = html;
         
-        // Прокрутка к месту ошибки по клику
+        // Обработчики клика для выделения и подсказки
+        const self = this;
         document.querySelectorAll('.recommendation-item').forEach(el => {
-            el.addEventListener('click', () => {
-                const pos = parseInt(el.dataset.position);
-                if (!isNaN(pos) && pos >= 0) {
-                    const textarea = document.getElementById('textInput');
-                    if (textarea) {
-                        textarea.focus();
-                        textarea.setSelectionRange(pos, pos);
-                        textarea.scrollTop = (pos / textarea.value.length) * textarea.scrollHeight;
-                    }
-                }
+            el.addEventListener('click', function(e) {
+                const pos = parseInt(this.dataset.position);
+                const desc = this.dataset.description;
+                const suggest = this.dataset.suggestion;
+                if (isNaN(pos)) return;
+                
+                const textarea = document.getElementById('textInput');
+                if (!textarea) return;
+                
+                // 1. Выделяем слово (простая эвристика: от позиции до ближайшего пробела или конца)
+                const text = textarea.value;
+                let end = pos;
+                while (end < text.length && text[end] !== ' ' && text[end] !== '\n') end++;
+                let start = pos;
+                while (start > 0 && text[start-1] !== ' ' && text[start-1] !== '\n') start--;
+                
+                textarea.focus();
+                textarea.setSelectionRange(start, end);
+                
+                // 2. Показываем tooltip
+                const word = text.substring(start, end);
+                const tooltipText = `${desc}${suggest ? ' → ' + suggest : ''}`;
+                self.showWordTooltip(textarea, start, end, word, tooltipText);
             });
         });
+    },
+    
+    // Вычисляет координаты слова в textarea (зеркальный метод)
+    getWordCoordinates: function(textarea, start, end) {
+        // Создаём скрытый div, копирующий стили textarea
+        const mirror = document.createElement('div');
+        const style = window.getComputedStyle(textarea);
+        mirror.style.cssText = `
+            position: absolute;
+            top: -9999px;
+            left: -9999px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            font-family: ${style.fontFamily};
+            font-size: ${style.fontSize};
+            font-weight: ${style.fontWeight};
+            line-height: ${style.lineHeight};
+            letter-spacing: ${style.letterSpacing};
+            padding: ${style.padding};
+            border: ${style.border};
+            width: ${textarea.clientWidth}px;
+            box-sizing: ${style.boxSizing};
+        `;
+        
+        // Вставляем текст до начала слова с подсветкой начала
+        const text = textarea.value;
+        const before = text.substring(0, start);
+        const word = text.substring(start, end);
+        
+        // Для точного позиционирования используем span
+        mirror.innerHTML = this.escapeHtml(before) +
+            '<span style="background-color: transparent; border: 1px solid transparent;">' +
+            this.escapeHtml(word) + '</span>';
+        
+        document.body.appendChild(mirror);
+        
+        const span = mirror.querySelector('span');
+        const rect = span.getBoundingClientRect();
+        const textareaRect = textarea.getBoundingClientRect();
+        
+        document.body.removeChild(mirror);
+        
+        // Координаты относительно viewport
+        return {
+            left: textareaRect.left + rect.left - mirror.getBoundingClientRect().left,
+            top: textareaRect.top + rect.top - mirror.getBoundingClientRect().top,
+            width: rect.width,
+            height: rect.height
+        };
+    },
+    
+    // Показывает tooltip возле слова
+    showWordTooltip: function(textarea, start, end, word, message) {
+        // Удаляем старый tooltip, если есть
+        if (this.activeTooltip) {
+            this.activeTooltip.remove();
+            this.activeTooltip = null;
+        }
+        
+        const coords = this.getWordCoordinates(textarea, start, end);
+        
+        // Создаём новый tooltip
+        const tooltip = document.createElement('div');
+        tooltip.className = 'word-tooltip';
+        tooltip.innerHTML = `
+            <div class="tooltip-word">${this.escapeHtml(word)}</div>
+            <div class="tooltip-message">${this.escapeHtml(message)}</div>
+        `;
+        
+        // Стили tooltip (жёлтый фон)
+        tooltip.style.cssText = `
+            position: fixed;
+            left: ${coords.left}px;
+            top: ${coords.top + coords.height + 6}px;
+            background: #fff9db;
+            border: 1px solid #f0e68c;
+            border-radius: 8px;
+            padding: 8px 12px;
+            font-size: 13px;
+            color: #5c5100;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            z-index: 10000;
+            max-width: 280px;
+            pointer-events: none;
+        `;
+        
+        document.body.appendChild(tooltip);
+        this.activeTooltip = tooltip;
+        
+        // Удаляем tooltip через несколько секунд или при клике в другом месте
+        const removeTooltip = () => {
+            tooltip.remove();
+            this.activeTooltip = null;
+            document.removeEventListener('click', removeTooltip);
+        };
+        setTimeout(() => {
+            document.addEventListener('click', removeTooltip, { once: true });
+        }, 10);
+        // Также удалим через 5 секунд автоматически
+        setTimeout(() => {
+            if (this.activeTooltip === tooltip) removeTooltip();
+        }, 5000);
     },
     
     // Отображение сводки во вкладке "Результаты анализа"
@@ -148,5 +268,4 @@ if (typeof window !== 'undefined') {
     window.displayResultsSummary = Components.displayResultsSummary.bind(Components);
     window.updateStats = Components.updateStats.bind(Components);
     window.showNotification = Components.showNotification.bind(Components);
-    console.log('Components модуль загружен');
 }

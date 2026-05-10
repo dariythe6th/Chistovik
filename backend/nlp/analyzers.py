@@ -151,15 +151,18 @@ def analyze_text(text: str, functions: List[str]) -> Dict[str, Any]:
             for match in matches_local:
                 error_word = text[match.offset:match.offset + match.errorLength]
                 repl = match.replacements[:3]
+                desc = match.message
+                if "аналогичной по начертанию" in desc:
+                    desc = "Найдена буква из другого алфавита, похожая на русскую"
                 result["spelling_errors"].append({
                     "word": error_word,
                     "position": match.offset,
                     "suggestions": repl,
-                    "description": match.message
+                    "description": desc
                 })
                 result["recommendations"].append({
                     "type": "spelling",
-                    "description": f"Ошибка: {match.message}",
+                    "description": f"Ошибка: {desc}",
                     "suggested_change": ", ".join(repl),
                     "position": match.offset
                 })
@@ -172,15 +175,18 @@ def analyze_text(text: str, functions: List[str]) -> Dict[str, Any]:
                     length = m["length"]
                     error_word = text[offset:offset + length]
                     repl = m["replacements"]
+                    desc = m["message"]
+                    if "аналогичной по начертанию" in desc:
+                        desc = "Найдена буква из другого алфавита, похожая на русскую"
                     result["spelling_errors"].append({
                         "word": error_word,
                         "position": offset,
                         "suggestions": repl,
-                        "description": m["message"]
+                        "description": desc
                     })
                     result["recommendations"].append({
                         "type": "spelling",
-                        "description": f"Ошибка: {m['message']}",
+                        "description": f"Ошибка: {desc}",
                         "suggested_change": ", ".join(repl),
                         "position": offset
                     })

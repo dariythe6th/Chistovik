@@ -1,9 +1,14 @@
 // profile.js - реальные данные пользователя и выход
 
-document.addEventListener('DOMContentLoaded', () => {
-    // Проверка авторизации уже выполнена в HTML (редирект на login.html)
+document.addEventListener('DOMContentLoaded', async () => {
+    // Дожидаемся загрузки данных пользователя
+    await Auth.ensureUserLoaded();
     const user = Auth.getCurrentUser();
-    if (!user) return;
+    if (!user) {
+        // Если после загрузки пользователь всё ещё null, значит токен невалиден
+        window.location.href = 'login.html';
+        return;
+    }
 
     // Заполняем данные профиля
     document.getElementById('userName').textContent = user.name;
@@ -11,7 +16,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('userRegDate').textContent = new Date(user.registered_at).toLocaleDateString('ru-RU');
     
     // Аватар (первые буквы имени)
-    const initials = user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+    const initials = user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) || '?';
     document.querySelector('.avatar-initials').textContent = initials;
     
     // Загружаем статистику (сохранённые тексты пользователя)
@@ -19,7 +24,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const myTexts = allTexts.filter(t => t.userId === user.id);
     const savedCount = myTexts.length;
     const totalChars = myTexts.reduce((sum, t) => sum + (t.content?.length || 0), 0);
-    const totalAnalyses = myTexts.length; // можно считать каждый сохранённый текст как один анализ (или сделать отдельный счётчик)
+    const totalAnalyses = myTexts.length;
     
     document.getElementById('savedCount').textContent = savedCount;
     document.getElementById('totalChars').textContent = totalChars.toLocaleString();
