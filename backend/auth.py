@@ -30,8 +30,12 @@ def create_access_token(data: dict):
 async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        user_id: int = payload.get("sub")
-        if user_id is None:
+        sub = payload.get("sub")
+        if sub is None:
+            raise HTTPException(status_code=401)
+        try:
+            user_id = int(sub)
+        except (TypeError, ValueError):
             raise HTTPException(status_code=401)
     except JWTError:
         raise HTTPException(status_code=401)

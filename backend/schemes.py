@@ -12,6 +12,7 @@ class UserOut(BaseModel):
     name: str
     email: str
     role: str
+    registered_at: datetime
 
     class Config:
         orm_mode = True

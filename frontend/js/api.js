@@ -37,10 +37,9 @@ const API = {
     deleteText: (id) =>
         API._fetch(`/history/${id}`, { method: 'DELETE' }),
 
-    clearHistory: () => Promise.resolve({ success: true }), // заглушка
+    clearHistory: () => Promise.resolve({ success: true }),
 
     rewriteText: async (text, style) => {
-        // заглушка – использует клиентский RewriteAnalyzer (если есть)
         if (window.RewriteAnalyzer) {
             return window.RewriteAnalyzer.rewriteText(text, style);
         }

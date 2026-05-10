@@ -124,7 +124,7 @@
         const errorDiv = document.getElementById('errorMsg');
         const successDiv = document.getElementById('successMsg');
 
-        form.addEventListener('submit', (e) => {
+        form.addEventListener('submit', async (e) => {
             e.preventDefault();
             const name = document.getElementById('name').value.trim();
             const email = document.getElementById('email').value.trim();
@@ -138,16 +138,16 @@
             }
             
             // Обычная регистрация (роль 'user')
-            const result = Auth.register(name, email, password, false);
-            if (result.success) {
+            try {
+                const result = await Auth.register(name, email, password);
                 successDiv.textContent = 'Регистрация успешна! Перенаправляем на вход...';
                 successDiv.style.display = 'block';
                 errorDiv.style.display = 'none';
                 setTimeout(() => {
                     window.location.href = 'login.html';
                 }, 1500);
-            } else {
-                errorDiv.textContent = result.error;
+            } catch (error) {
+                errorDiv.textContent = error.message || 'Ошибка регистрации';
                 errorDiv.style.display = 'block';
                 successDiv.style.display = 'none';
             }

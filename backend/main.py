@@ -1,7 +1,8 @@
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
-from database import engine, get_db, Base
+from typing import List
+from database import engine, get_db, Base, SessionLocal
 from models import User, Text, Analysis, SavedText, SpellingError, WaterPhrase, Recommendation
 from schemes import *
 from auth import (
@@ -15,6 +16,41 @@ import json
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="CHISTOVIK API")
+
+def _ensure_admin_user():
+    """
+    Создаём администратора по умолчанию, если его нет.
+    Данные для входа:
+      Email: admin@example.com
+      Пароль: admin
+    """
+    db = SessionLocal()
+    try:
+        admin_email = "admin@example.com"
+        admin = db.query(User).filter(User.email == admin_email).first()
+        if admin:
+            # Поддерживаем роль админа, если пользователя уже создавали раньше
+            if admin.role != "admin":
+                admin.role = "admin"
+                db.commit()
+            return
+        admin_user = User(
+            name="Admin",
+            email=admin_email,
+            password_hash=get_password_hash("admin"),
+            role="admin",
+        )
+        db.add(admin_user)
+        db.commit()
+    finally:
+        db.close()
+
+_ensure_admin_user()
+
+def require_admin(user: User = Depends(get_current_user)) -> User:
+    if user.role != "admin":
+        raise HTTPException(status_code=403, detail="Admin only")
+    return user
 
 @app.post("/api/register", response_model=UserOut)
 def register(user: UserCreate, db: Session = Depends(get_db)):
@@ -39,6 +75,31 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
 @app.get("/api/me", response_model=UserOut)
 def get_me(user: User = Depends(get_current_user)):
     return user
+
+@app.get("/api/admin/users", response_model=List[UserOut])
+def admin_list_users(_: User = Depends(require_admin), db: Session = Depends(get_db)):
+    return db.query(User).order_by(User.registered_at.desc()).all()
+
+@app.get("/api/admin/texts")
+def admin_list_texts(_: User = Depends(require_admin), db: Session = Depends(get_db)):
+    items = (
+        db.query(SavedText, User)
+        .join(User, SavedText.user_id == User.id)
+        .order_by(SavedText.saved_at.desc())
+        .all()
+    )
+    return [
+        {
+            "id": saved.id,
+            "title": saved.title,
+            "content": saved.content,
+            "saved_at": saved.saved_at,
+            "userId": user.id,
+            "userName": user.name,
+            "userEmail": user.email,
+        }
+        for (saved, user) in items
+    ]
 
 @app.post("/api/analyze")
 def analyze(req: AnalysisRequest):

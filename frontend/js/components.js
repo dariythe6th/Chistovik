@@ -28,8 +28,7 @@ const Components = {
             styleLabel.textContent = styleLabels[analysis.style_label] || analysis.style_label;
             styleLabel.className = 'style-badge ' + analysis.style_label;
         }
-        
-        // Вода (если есть элементы)
+
         const waterPercentage = document.getElementById('waterPercentage');
         const waterFill = document.getElementById('waterFill');
         const waterWarning = document.getElementById('waterWarning');

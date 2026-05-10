@@ -250,14 +250,26 @@ def analyze_text(text: str, functions: List[str]) -> Dict[str, Any]:
 
     # Читаемость (textstat для русского? используем упрощённую формулу Флеша)
     if 'readability' in functions or True:  # всегда считаем
-        words = text.split()
-        sentences = re.split(r'[.!?]+', text.strip())
+        # Для русского применяем адаптацию Flesch Reading Ease:
+        # score = 206.835 - 1.3*(words/sentences) - 60.1*(syllables/words)
+        # Важно: здесь именно слоги, а не длина слова в символах.
+        words = re.findall(r"[A-Za-zА-Яа-яЁё]+", text)
+        sentences = [s for s in re.split(r"[.!?]+", text.strip()) if s.strip()]
+        vowels = set("аеёиоуыэюяAEIOUYaeiouy")
+
+        def count_syllables(word: str) -> int:
+            w = word.lower()
+            cnt = sum(1 for ch in w if ch in vowels)
+            return cnt if cnt > 0 else 1
+
         if len(words) == 0 or len(sentences) == 0:
             score = 0
         else:
+            total_syllables = sum(count_syllables(w) for w in words)
             avg_sentence_len = len(words) / len(sentences)
-            avg_word_len = sum(len(w) for w in words) / len(words)
-            score = max(0, min(100, 206.835 - 1.3 * avg_sentence_len - 60.1 * avg_word_len))
+            avg_syllables_per_word = total_syllables / len(words)
+            score = 206.835 - 1.3 * avg_sentence_len - 60.1 * avg_syllables_per_word
+            score = max(0, min(100, score))
         result["readability_score"] = round(score, 1)
         if score >= 80:
             result["readability_level"] = "Очень лёгкий"

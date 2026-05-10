@@ -190,24 +190,28 @@
     <script src="../js/auth.js"></script>
     <script src="../js/api.js"></script>
     <script>
-        // Проверка доступа
-        if (!Auth.isAuthenticated()) {
-            window.location.href = 'login.html';
-        }
-        if (!Auth.isAdmin()) {
-            alert('Доступ запрещён. Только для администратора.');
-            window.location.href = '../index.html';
-        }
-
         // Обработчик кнопки выхода
         document.getElementById('adminLogoutBtn').addEventListener('click', () => {
             Auth.logout();
             window.location.href = 'login.html';
         });
 
-        function loadAdminData() {
-            const users = Auth.getAllUsers();
-            const allTexts = JSON.parse(localStorage.getItem('chistovik_history') || '[]');
+        async function loadAdminData() {
+            await Auth.ensureUserLoaded();
+
+            // Проверка доступа
+            if (!Auth.isAuthenticated()) {
+                window.location.href = 'login.html';
+                return;
+            }
+            if (!Auth.isAdmin()) {
+                alert('Доступ запрещён. Только для администратора.');
+                window.location.href = '../index.html';
+                return;
+            }
+
+            const users = await Auth.getAllUsers();
+            const allTexts = await Auth.getAllTexts();
 
             const totalUsers = users.length;
             const adminCount = users.filter(u => u.role === 'admin').length;
@@ -225,7 +229,7 @@
             for (let uid in userTextCount) {
                 if (userTextCount[uid] > topCount) { topCount = userTextCount[uid]; topUserId = uid; }
             }
-            const topUser = users.find(u => u.id === topUserId);
+            const topUser = users.find(u => String(u.id) === String(topUserId));
             const topUserName = topUser ? topUser.name : '—';
 
             // Основная статистика
@@ -259,13 +263,11 @@
             // Таблица текстов
             const textsTbody = document.getElementById('textsTbody');
             textsTbody.innerHTML = allTexts.map(t => {
-                const user = users.find(u => u.id === t.userId);
-                const userName = user ? user.name : 'Неизвестный';
                 return `
                     <tr>
                         <td>${t.id}</td>
                         <td>${escapeHtml(t.title || 'Без названия')}</td>
-                        <td>${escapeHtml(userName)}</td>
+                        <td>${escapeHtml(t.userName || 'Неизвестный')}</td>
                         <td class="preview-text" title="${escapeHtml(t.content)}">${escapeHtml(t.content.substring(0, 100))}${t.content.length > 100 ? '…' : ''}</td>
                         <td>${new Date(t.saved_at).toLocaleString('ru-RU')}</td>
                     </tr>
@@ -283,7 +285,10 @@
             });
         }
 
-        loadAdminData();
+        loadAdminData().catch((e) => {
+            console.error(e);
+            alert(e.message || 'Ошибка загрузки админ-панели');
+        });
     </script>
 </body>
 </html>

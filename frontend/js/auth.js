@@ -1,6 +1,7 @@
 const Auth = (function() {
     const TOKEN_KEY = 'access_token';
     let currentUser = null;
+    let userLoadPromise = null;
 
     async function register(name, email, password) {
         const res = await fetch('/api/register', {
@@ -53,6 +54,14 @@ const Auth = (function() {
         }
     }
 
+    function ensureUserLoaded() {
+        if (userLoadPromise) return userLoadPromise;
+        userLoadPromise = Promise.resolve().then(loadUser).finally(() => {
+            userLoadPromise = null;
+        });
+        return userLoadPromise;
+    }
+
     function logout() {
         localStorage.removeItem(TOKEN_KEY);
         currentUser = null;
@@ -66,10 +75,49 @@ const Auth = (function() {
         return !!localStorage.getItem(TOKEN_KEY);
     }
 
-    // Инициализация при загрузке страницы
-    loadUser();
+    ensureUserLoaded();
 
-    return { register, login, logout, getCurrentUser, isAuthenticated };
+    function isAdmin() {
+        return !!currentUser && currentUser.role === 'admin';
+    }
+
+    async function getAllUsers() {
+        const token = localStorage.getItem(TOKEN_KEY);
+        if (!token) throw new Error('Требуется вход в аккаунт');
+        const res = await fetch('/api/admin/users', {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.detail || 'Ошибка загрузки пользователей');
+        }
+        return res.json();
+    }
+
+    async function getAllTexts() {
+        const token = localStorage.getItem(TOKEN_KEY);
+        if (!token) throw new Error('Требуется вход в аккаунт');
+        const res = await fetch('/api/admin/texts', {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.detail || 'Ошибка загрузки текстов');
+        }
+        return res.json();
+    }
+
+    return {
+        register,
+        login,
+        logout,
+        getCurrentUser,
+        isAuthenticated,
+        ensureUserLoaded,
+        isAdmin,
+        getAllUsers,
+        getAllTexts
+    };
 })();
 
 if (typeof window !== 'undefined') {
