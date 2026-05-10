@@ -1,162 +1,75 @@
-// auth.js - Модуль аутентификации и работы с пользователями (имитация БД в localStorage)
-
 const Auth = (function() {
-    const STORAGE_KEY = 'chistovik_users';
-    const SESSION_KEY = 'chistovik_current_user';
+    const TOKEN_KEY = 'access_token';
+    let currentUser = null;
 
-    // Инициализация: если нет пользователей, создать админа по умолчанию
-    function init() {
-        let users = getUsers();
-        if (users.length === 0) {
-            // Создаём администратора по умолчанию
-            const defaultAdmin = {
-                id: Date.now().toString(),
-                name: 'Администратор',
-                email: 'admin@example.com',
-                password: hashPassword('admin'),
-                role: 'admin',
-                registered_at: new Date().toISOString()
-            };
-            users.push(defaultAdmin);
-            saveUsers(users);
-            console.log('Создан администратор по умолчанию: admin@example.com / admin');
+    async function register(name, email, password) {
+        const res = await fetch('/api/register', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, email, password })
+        });
+        if (!res.ok) {
+            const err = await res.json();
+            throw new Error(err.detail || 'Ошибка регистрации');
         }
+        const user = await res.json();
+        return { success: true, user };
     }
 
-    function getUsers() {
-        const data = localStorage.getItem(STORAGE_KEY);
-        return data ? JSON.parse(data) : [];
-    }
-
-    function saveUsers(users) {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(users));
-    }
-
-    // Простейшее хэширование (не для продакшена, только для демо)
-    function hashPassword(password) {
-        let hash = 0;
-        for (let i = 0; i < password.length; i++) {
-            const char = password.charCodeAt(i);
-            hash = ((hash << 5) - hash) + char;
-            hash |= 0;
+    async function login(email, password) {
+        const formData = new URLSearchParams();
+        formData.append('username', email);
+        formData.append('password', password);
+        const res = await fetch('/api/login', {
+            method: 'POST',
+            body: formData
+        });
+        if (!res.ok) {
+            const err = await res.json();
+            throw new Error(err.detail || 'Ошибка входа');
         }
-        return hash.toString();
+        const data = await res.json();
+        localStorage.setItem(TOKEN_KEY, data.access_token);
+        const user = await loadUser();
+        return { success: true, user };
     }
 
-    function register(name, email, password) {
-        const users = getUsers();
-        // Проверка на существующего пользователя
-        if (users.find(u => u.email === email)) {
-            return { success: false, error: 'Пользователь с таким email уже существует' };
+    async function loadUser() {
+        const token = localStorage.getItem(TOKEN_KEY);
+        if (!token) return null;
+        try {
+            const res = await fetch('/api/me', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (!res.ok) {
+                throw new Error('Не удалось получить профиль');
+            }
+            currentUser = await res.json();
+            return currentUser;
+        } catch (e) {
+            localStorage.removeItem(TOKEN_KEY);
+            currentUser = null;
+            return null;
         }
-        const newUser = {
-            id: Date.now().toString(),
-            name: name,
-            email: email,
-            password: hashPassword(password),
-            role: 'user',
-            registered_at: new Date().toISOString()
-        };
-        users.push(newUser);
-        saveUsers(users);
-        return { success: true, user: { id: newUser.id, name: newUser.name, email: newUser.email, role: newUser.role } };
-    }
-
-    function login(email, password) {
-        const users = getUsers();
-        const hashed = hashPassword(password);
-        const user = users.find(u => u.email === email && u.password === hashed);
-        if (!user) {
-            return { success: false, error: 'Неверный email или пароль' };
-        }
-        // Сохраняем сессию
-        const sessionUser = {
-            id: user.id,
-            name: user.name,
-            email: user.email,
-            role: user.role,
-            registered_at: user.registered_at
-        };
-        localStorage.setItem(SESSION_KEY, JSON.stringify(sessionUser));
-        return { success: true, user: sessionUser };
     }
 
     function logout() {
-        localStorage.removeItem(SESSION_KEY);
+        localStorage.removeItem(TOKEN_KEY);
+        currentUser = null;
     }
 
     function getCurrentUser() {
-        const data = localStorage.getItem(SESSION_KEY);
-        return data ? JSON.parse(data) : null;
+        return currentUser;
     }
 
     function isAuthenticated() {
-        return getCurrentUser() !== null;
+        return !!localStorage.getItem(TOKEN_KEY);
     }
 
-    function isAdmin() {
-        const user = getCurrentUser();
-        return user && user.role === 'admin';
-    }
+    // Инициализация при загрузке страницы
+    loadUser();
 
-    // Получить всех пользователей (только для админа)
-    function getAllUsers() {
-        const users = getUsers();
-        // Возвращаем без паролей
-        return users.map(u => ({
-            id: u.id,
-            name: u.name,
-            email: u.email,
-            role: u.role,
-            registered_at: u.registered_at
-        }));
-    }
-
-    // Получить все тексты всех пользователей (для админа)
-    function getAllTexts() {
-        const allTexts = JSON.parse(localStorage.getItem('chistovik_history') || '[]');
-        // В текущей реализации тексты не привязаны к пользователю, поэтому добавим поле user_id позже
-        // Для простоты будем считать, что все тексты принадлежат текущему пользователю.
-        // В админке покажем общее количество текстов.
-        return allTexts;
-    }
-
-    // Привязка текста к пользователю (для будущего)
-    function saveTextForUser(userId, title, content) {
-        // Сейчас сохраняем как обычно, но в записи добавим userId
-        const savedTexts = JSON.parse(localStorage.getItem('chistovik_history') || '[]');
-        const newText = {
-            id: Date.now().toString(),
-            userId: userId,
-            title: title,
-            content: content,
-            saved_at: new Date().toISOString()
-        };
-        savedTexts.unshift(newText);
-        localStorage.setItem('chistovik_history', JSON.stringify(savedTexts));
-        return newText;
-    }
-
-    function getUserTexts(userId) {
-        const allTexts = JSON.parse(localStorage.getItem('chistovik_history') || '[]');
-        return allTexts.filter(t => t.userId === userId);
-    }
-
-    // Инициализация при загрузке
-    init();
-
-    return {
-        register,
-        login,
-        logout,
-        getCurrentUser,
-        isAuthenticated,
-        isAdmin,
-        getAllUsers,
-        getAllTexts,
-        saveTextForUser,
-        getUserTexts
-    };
+    return { register, login, logout, getCurrentUser, isAuthenticated };
 })();
 
 if (typeof window !== 'undefined') {

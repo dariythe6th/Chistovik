@@ -18,6 +18,7 @@ const cancelSaveBtn = document.getElementById('cancelSaveBtn');
 const modalCloseBtns = document.querySelectorAll('.modal-close');
 
 let isRewriteMode = false;
+let lastAnalysisResult = null;
 
 document.addEventListener('DOMContentLoaded', () => {
     // Загрузка текста из истории (если пришли из history.html)
@@ -76,6 +77,7 @@ async function analyzeText() {
 
     try {
         const result = await API.analyzeText(text, selectedFunctions);
+        lastAnalysisResult = result;
         
         // Обновить статистику и читаемость
         if (result.stats) {
@@ -90,7 +92,7 @@ async function analyzeText() {
         // Рекомендации (поштучно)
         if (window.Components) {
             Components.displayRecommendations({ recommendations: result.recommendations });
-            Components.displayResultsSummary(result.summary, selectedFunctions);
+            Components.displayResultsSummary(result.summary || {}, selectedFunctions);
         } else {
             console.warn('Components не загружен');
         }
@@ -156,7 +158,7 @@ async function saveCurrentText() {
     const content = textInput.value.trim();
     statusIndicator.textContent = 'Сохранение...';
     try {
-        await API.saveText(title, content);
+        await API.saveText(title, content, lastAnalysisResult);
         showNotification('Текст сохранён', 'success');
         closeSaveModal();
     } catch (err) {
