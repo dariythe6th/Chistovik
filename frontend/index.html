@@ -113,16 +113,19 @@
         <div class="editor-wrapper" id="editorWrapper">
             <div class="editor-column original-column" id="originalColumn">
                 <div class="editor-container">
+                    <div class="editor-header">
+                        <span>Исходный текст</span>
+                    </div>
                     <textarea id="textInput" placeholder="Введите или вставьте текст для анализа...&#10;&#10;Например:&#10;В настоящее время мы принимаем во внимание тот факт, что ихняя програма работает очень быстро. Данный проект представляет собой комплексную систему, которая включает в себя множество различных модулей, предназначенных для всестороннего анализа текстовой информации с целью повышения качества письменной речи."></textarea>
                 </div>
             </div>
             <div class="editor-column modified-column" id="modifiedColumn" style="display: none;">
                 <div class="editor-container">
-                    <div class="modified-header">
+                    <div class="editor-header">
                         <span>Изменённый текст</span>
-                        <button id="acceptChangesBtn" class="accept-btn">Применить изменения</button>
+                        <button id="acceptFixesBtn" class="accept-btn">Заменить исходный текст</button>
                     </div>
-                    <textarea id="modifiedInput" readonly placeholder="Здесь появится изменённый текст..."></textarea>
+                    <div id="modifiedInput" class="modified-text"></div>
                 </div>
             </div>
         </div>
@@ -145,6 +148,12 @@
                 Сохранить
             </button>
             <span id="statusIndicator" class="status-indicator"></span>
+            <button id="applyFixesBtn" class="apply-fixes-btn" disabled>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="20 6 9 17 4 12"/>
+                </svg>
+                Применить исправления
+            </button>
         </div>
 
         <!-- Блок результатов анализа (вкладки) -->
