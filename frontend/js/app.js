@@ -8,7 +8,7 @@ const rewriteBtn = document.getElementById('rewriteBtn');
 const rewriteStyleSelect = document.getElementById('rewriteStyleSelect');
 const modifiedColumn = document.getElementById('modifiedColumn');
 const modifiedInput = document.getElementById('modifiedInput');
-const acceptChangesBtn = document.getElementById('acceptChangesBtn');
+const acceptFixesBtn = document.getElementById('acceptFixesBtn');
 const tabBtns = document.querySelectorAll('.tab-btn');
 const tabPanes = document.querySelectorAll('.tab-pane');
 const saveModal = document.getElementById('saveModal');
@@ -38,7 +38,6 @@ document.addEventListener('DOMContentLoaded', () => {
     analyzeBtn.addEventListener('click', analyzeText);
     saveBtn.addEventListener('click', openSaveModal);
     rewriteBtn.addEventListener('click', handleRewrite);
-    acceptChangesBtn.addEventListener('click', acceptChanges);
 
     tabBtns.forEach(btn => {
         btn.addEventListener('click', () => switchTab(btn.dataset.tab));
@@ -89,15 +88,21 @@ async function analyzeText() {
         document.getElementById('readabilityFill').style.width = `${result.readability_score}%`;
         document.getElementById('readabilityLevel').textContent = result.readability_level;
         
-        // Рекомендации (поштучно)
+        // Рекомендации
         if (window.Components) {
             Components.displayRecommendations({ recommendations: result.recommendations });
             Components.displayResultsSummary(result.summary || {}, selectedFunctions);
-        } else {
-            console.warn('Components не загружен');
         }
         
         showNotification('Анализ завершён', 'success');
+        
+        // Разблокировать кнопку применения исправлений, если есть что исправлять
+        if (applyFixesBtn) {
+            const hasFixes = (result.spelling_errors && result.spelling_errors.length > 0) ||
+                             (result.water_phrases && result.water_phrases.length > 0);
+            applyFixesBtn.disabled = !hasFixes;
+        }
+        
     } catch (err) {
         console.error(err);
         showNotification('Ошибка при анализе', 'error');
@@ -131,18 +136,6 @@ async function handleRewrite() {
     }
 }
 
-function acceptChanges() {
-    if (!isRewriteMode) return;
-    const rewritten = modifiedInput.value;
-    if (rewritten) {
-        textInput.value = rewritten;
-        modifiedColumn.style.display = 'none';
-        modifiedInput.value = '';
-        isRewriteMode = false;
-        updateStatsInRealTime();
-        showNotification('Текст обновлён', 'success');
-    }
-}
 
 function openSaveModal() {
     if (!textInput.value.trim()) { showNotification('Нечего сохранять', 'warning'); return; }
@@ -171,4 +164,175 @@ async function saveCurrentText() {
 function showNotification(msg, type) {
     if (window.Components) Components.showNotification(msg, type);
     else alert(msg);
+}
+
+// Кнопка применения исправлений
+const applyFixesBtn = document.getElementById('applyFixesBtn');
+
+if (applyFixesBtn) {
+    applyFixesBtn.addEventListener('click', applyFixes);
+}
+
+function applyFixes() {
+    if (!lastAnalysisResult) {
+        showNotification('Сначала выполните анализ текста', 'warning');
+        return;
+    }
+    
+    // Блокируем кнопку на время обработки
+    applyFixesBtn.disabled = true;
+    
+    const text = textInput.value;
+    
+    // Собираем все исправления из орфографии и воды
+    const fixes = [];
+    
+    // Орфографические ошибки
+    if (lastAnalysisResult.spelling_errors) {
+        for (const err of lastAnalysisResult.spelling_errors) {
+            if (err.suggestions && err.suggestions.length > 0) {
+                fixes.push({
+                    position: err.position,
+                    length: err.word.length,
+                    original: err.word,
+                    replacement: err.suggestions[0],
+                    type: 'spelling'
+                });
+            }
+        }
+    }
+    
+    // Водные фразы
+    if (lastAnalysisResult.water_phrases) {
+        for (const wp of lastAnalysisResult.water_phrases) {
+            if (wp.recommendation) {
+                fixes.push({
+                    position: wp.position,
+                    length: wp.phrase.length,
+                    original: wp.phrase,
+                    replacement: wp.recommendation,
+                    type: 'water'
+                });
+            }
+        }
+    }
+    
+    if (fixes.length === 0) {
+        showNotification('Нет исправлений для применения', 'info');
+        applyFixesBtn.disabled = false;  // ← разблокировать
+        return;
+    }
+    
+    // Сортируем по позиции с конца, чтобы замены не сбивали индексы
+    fixes.sort((a, b) => b.position - a.position);
+    
+    // Применяем исправления и собираем размеченный текст
+    let fixedText = text;
+    const highlights = []; // для подсветки в правой панели
+    
+    for (const fix of fixes) {
+        const before = fixedText.substring(0, fix.position);
+        const after = fixedText.substring(fix.position + fix.length);
+        fixedText = before + fix.replacement + after;
+        
+        // Сохраняем информацию для подсветки
+        highlights.push({
+            position: fix.position,
+            length: fix.replacement.length,
+            original: fix.original,
+            replacement: fix.replacement
+        });
+    }
+    
+   showFixedText(fixedText, highlights);
+}
+
+function showFixedText(fixedText, highlights) {
+    const modifiedColumn = document.getElementById('modifiedColumn');
+    const modifiedInput = document.getElementById('modifiedInput');
+    const modifiedHeader = document.querySelector('#modifiedColumn .editor-header');   
+    
+    // Меняем заголовок
+    if (modifiedHeader) {
+        modifiedHeader.innerHTML = `
+            <span>Исправленный текст (${highlights.length} изменений)</span>
+            <div style="display: flex; gap: 8px;">
+                <button id="copyFixedTextBtn" class="copy-btn">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                    </svg>
+                    Копировать
+                </button>
+                <button id="acceptFixesBtn" class="accept-btn">Применить изменения</button>
+            </div>
+        `;
+    }
+    
+    // Создаём HTML с подсветкой исправленных слов
+    let html = '';
+    let lastPos = 0;
+    
+    // Сортируем highlights по позиции для правильного порядка
+    const sortedHighlights = [...highlights].sort((a, b) => a.position - b.position);
+    
+    for (const h of sortedHighlights) {
+        // Текст до исправления
+        html += escapeHtml(fixedText.substring(lastPos, h.position));
+        // Исправленное слово с подсветкой
+        html += `<span class="fixed-word" title="Заменено: «${escapeHtml(h.original)}» → «${escapeHtml(h.replacement)}»">${escapeHtml(h.replacement)}</span>`;
+        lastPos = h.position + h.length;
+    }
+    // Остаток текста
+    html += escapeHtml(fixedText.substring(lastPos));
+    
+    modifiedInput.innerHTML = html;
+    modifiedColumn.style.display = 'block';
+    modifiedColumn.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    
+    // Обработчик кнопки копирования
+    const copyBtn = document.getElementById('copyFixedTextBtn');
+    if (copyBtn) {
+        copyBtn.addEventListener('click', () => {
+            navigator.clipboard.writeText(fixedText).then(() => {
+                copyBtn.classList.add('copied');
+                copyBtn.innerHTML = `
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="20 6 9 17 4 12"/>
+                    </svg>
+                    Скопировано
+                `;
+                setTimeout(() => {
+                    copyBtn.classList.remove('copied');
+                    copyBtn.innerHTML = `
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                        </svg>
+                        Копировать
+                    `;
+                }, 2000);
+            }).catch(() => {
+                showNotification('Не удалось скопировать текст', 'error');
+            });
+        });
+    }
+    
+    // Обработчик кнопки "Применить изменения"
+    const acceptBtn = document.getElementById('acceptFixesBtn');
+    if (acceptBtn) {
+        acceptBtn.addEventListener('click', () => {
+            textInput.value = fixedText;
+            modifiedColumn.style.display = 'none';
+            modifiedInput.innerHTML = '';
+            updateStatsInRealTime();
+            applyFixesBtn.disabled = true;  // ← блокируем кнопку после применения
+            showNotification('Исправления применены', 'success');
+        });
+    }
+}
+
+function escapeHtml(str) {
+    if (!str) return '';
+    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
