@@ -3,9 +3,21 @@
 const HistoryPage = {
     allTexts: [],
     filtered: [],
+
+    /** data-id из DOM всегда строка; из API приходит число */
+    findTextById(rawId) {
+        if (rawId === undefined || rawId === null) return undefined;
+        return this.allTexts.find(
+            (t) => t.id === rawId || String(t.id) === String(rawId) || Number(t.id) === Number(rawId),
+        );
+    },
     
     async init() {
-        if (!Auth.isAuthenticated()) return;
+        await Auth.ensureUserLoaded();
+        if (!Auth.isAuthenticated()) {
+            window.location.href = 'login.html';
+            return;
+        }
         await this.loadHistory();
         this.bindEvents();
     },
@@ -52,58 +64,32 @@ const HistoryPage = {
                     <span class="history-meta-badge"> ${text.content.split(/\s+/).filter(w=>w).length} слов</span>
                 </div>
                 <div class="history-actions-buttons">
-                    <button class="history-action-btn primary" data-action="open" data-id="${text.id}"> Открыть</button>
-                    <button class="history-action-btn" data-action="details" data-id="${text.id}"> Подробнее</button>
-                    <button class="history-action-btn danger" data-action="delete" data-id="${text.id}"> Удалить</button>
+                    <button type="button" class="history-action-btn primary" data-action="open" data-id="${text.id}">Открыть в редакторе</button>
+                    <button type="button" class="history-action-btn danger" data-action="delete" data-id="${text.id}">Удалить</button>
                 </div>
             </div>
         `).join('');
-        
-        // Обработчики
-        document.querySelectorAll('[data-action="open"]').forEach(btn => {
-            btn.addEventListener('click', (e) => { e.stopPropagation(); this.openInEditor(btn.dataset.id); });
-        });
-        document.querySelectorAll('[data-action="details"]').forEach(btn => {
-            btn.addEventListener('click', (e) => { e.stopPropagation(); this.showDetails(btn.dataset.id); });
-        });
-        document.querySelectorAll('[data-action="delete"]').forEach(btn => {
-            btn.addEventListener('click', (e) => { e.stopPropagation(); this.deleteText(btn.dataset.id); });
-        });
-        document.querySelectorAll('.history-item').forEach(card => {
-            card.addEventListener('click', () => { this.openInEditor(card.dataset.id); });
-        });
     },
     
-    async deleteText(id) {
-        if (confirm('Удалить этот текст?')) {
+    async deleteText(rawId) {
+        const id = Number(rawId);
+        if (!Number.isFinite(id)) return;
+        if (!confirm('Удалить этот текст?')) return;
+        try {
             await API.deleteText(id);
             await this.loadHistory();
             this.showToast('Текст удалён');
+        } catch (e) {
+            console.error(e);
+            this.showToast('Не удалось удалить текст');
         }
     },
     
-    async openInEditor(id) {
-        const text = this.allTexts.find(t => t.id === id);
-        if (text) {
-            localStorage.setItem('chistovik_open_text', JSON.stringify({ content: text.content }));
-            window.location.href = '../index.html';
-        }
-    },
-    
-    async showDetails(id) {
-        const text = this.allTexts.find(t => t.id === id);
+    openInEditor(rawId) {
+        const text = this.findTextById(rawId);
         if (!text) return;
-        document.getElementById('detailsTitle').textContent = text.title;
-        document.getElementById('detailsDate').textContent = this.formatDate(text.saved_at);
-        document.getElementById('detailsStats').textContent = `${text.content.length} символов, ${text.content.split(/\s+/).filter(w=>w).length} слов`;
-        document.getElementById('detailsContent').textContent = text.content;
-        const modal = document.getElementById('textDetailsModal');
-        modal.classList.add('active');
-        document.getElementById('openInEditorBtn').onclick = () => { modal.classList.remove('active'); this.openInEditor(id); };
-        document.getElementById('deleteTextBtn').onclick = () => { modal.classList.remove('active'); this.deleteText(id); };
-        document.querySelectorAll('.modal-close').forEach(btn => {
-            btn.onclick = () => modal.classList.remove('active');
-        });
+        localStorage.setItem('chistovik_open_text', JSON.stringify({ content: text.content }));
+        window.location.href = '../index.html';
     },
     
     formatDate(iso) {
@@ -128,12 +114,36 @@ const HistoryPage = {
     },
     
     bindEvents() {
+        const listEl = document.getElementById('historyList');
+        if (listEl && !listEl._chistDelegation) {
+            listEl._chistDelegation = true;
+            listEl.addEventListener('click', (e) => {
+                const btn = e.target.closest('button[data-action]');
+                if (btn && listEl.contains(btn)) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const id = btn.getAttribute('data-id');
+                    if (btn.dataset.action === 'open') this.openInEditor(id);
+                    if (btn.dataset.action === 'delete') void this.deleteText(id);
+                    return;
+                }
+                const card = e.target.closest('.history-item');
+                if (!card || !listEl.contains(card)) return;
+                if (e.target.closest('button')) return;
+                this.openInEditor(card.getAttribute('data-id'));
+            });
+        }
+
         document.getElementById('refreshHistoryBtn')?.addEventListener('click', () => this.loadHistory());
         document.getElementById('clearHistoryBtn')?.addEventListener('click', async () => {
-            if (confirm('Очистить всю историю?')) {
+            if (!confirm('Очистить всю историю?')) return;
+            try {
                 await API.clearHistory();
                 await this.loadHistory();
                 this.showToast('История очищена');
+            } catch (e) {
+                console.error(e);
+                this.showToast('Не удалось очистить историю');
             }
         });
         document.getElementById('searchInput')?.addEventListener('input', (e) => {

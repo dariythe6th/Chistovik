@@ -168,10 +168,11 @@
                 <button class="modal-close">&times;</button>
             </div>
             <div class="modal-body">
-                <p class="demo-note">Демо-режим: выход не подключен.</p>
+                <p>Завершить сеанс и выйти из аккаунта?</p>
             </div>
             <div class="modal-footer">
-                <button class="modal-btn secondary modal-close-btn">Закрыть</button>
+                <button type="button" class="modal-btn secondary modal-close-btn">Отмена</button>
+                <button type="button" class="modal-btn primary" id="confirmLogoutBtn">Выйти</button>
             </div>
         </div>
     </div>
@@ -184,14 +185,16 @@
                 <button class="modal-close">&times;</button>
             </div>
             <div class="modal-body">
-                <p class="demo-note">Демо-режим: удаление аккаунта не подключено.</p>
+                <p>Удаление учётной записи в текущей версии не поддерживается. Вы можете выйти из аккаунта в любой момент.</p>
             </div>
             <div class="modal-footer">
-                <button class="modal-btn secondary modal-close-btn">Закрыть</button>
+                <button type="button" class="modal-btn secondary modal-close-btn">Понятно</button>
             </div>
         </div>
     </div>
 
+    <script src="../js/api.js"></script>
+    <script src="../js/components.js"></script>
     <script src="../js/profile.js"></script>
 </body>
 </html>
