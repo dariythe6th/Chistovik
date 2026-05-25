@@ -10,6 +10,8 @@ from auth import (
     get_current_user
 )
 from nlp.analyzers import analyze_text
+from nlp.rewriter import rewrite_text as rewrite_text_nlp
+from nlp.apply_fixes import apply_fixes_to_text
 from datetime import datetime
 import json
 
@@ -100,6 +102,23 @@ def admin_list_texts(_: User = Depends(require_admin), db: Session = Depends(get
         }
         for (saved, user) in items
     ]
+
+@app.post("/api/apply-fixes", response_model=ApplyFixesResponse)
+def apply_fixes(req: ApplyFixesRequest):
+    # Всегда анализируем текст на сервере — позиции совпадают с переданным text
+    analysis = analyze_text(req.text, req.functions or ["spelling"])
+    out = apply_fixes_to_text(req.text, analysis)
+    return {
+        "fixed_text": out["fixed_text"],
+        "applied_count": out["applied_count"],
+        "applied": out.get("applied") or [],
+        "engine": out.get("engine", "dict-v3"),
+    }
+
+@app.post("/api/rewrite", response_model=RewriteResponse)
+def rewrite(req: RewriteRequest):
+    rewritten = rewrite_text_nlp(req.text, req.style)
+    return {"rewritten": rewritten, "style": req.style}
 
 @app.post("/api/analyze")
 def analyze(req: AnalysisRequest):

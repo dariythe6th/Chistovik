@@ -37,13 +37,31 @@ const API = {
     deleteText: (id) =>
         API._fetch(`/history/${id}`, { method: 'DELETE' }),
 
-    clearHistory: () => Promise.resolve({ success: true }),
+    clearHistory: async () => {
+        const items = await API.getHistory();
+        await Promise.all(items.map((item) => API.deleteText(item.id)));
+        return { success: true };
+    },
+
+    applyFixes: (text, functions) =>
+        API._fetch('/apply-fixes', {
+            method: 'POST',
+            body: JSON.stringify({ text, functions }),
+        }),
 
     rewriteText: async (text, style) => {
-        if (window.RewriteAnalyzer) {
-            return window.RewriteAnalyzer.rewriteText(text, style);
+        try {
+            const data = await API._fetch('/rewrite', {
+                method: 'POST',
+                body: JSON.stringify({ text, style })
+            });
+            return data.rewritten;
+        } catch (err) {
+            if (window.RewriteAnalyzer) {
+                return window.RewriteAnalyzer.rewriteText(text, style);
+            }
+            throw err;
         }
-        return `[Переписано в стиле ${style}]\n\n${text}`;
     }
 };
 

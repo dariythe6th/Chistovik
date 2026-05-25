@@ -5,6 +5,7 @@ import os
 
 os.environ.setdefault("DATABASE_URL", "sqlite:///:memory:")
 os.environ.setdefault("SECRET_KEY", "pytest-secret-key")
+os.environ.setdefault("CHISTOVIK_LIGHT_NLP", "1")
 
 import pytest
 from fastapi.testclient import TestClient

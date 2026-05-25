@@ -4,7 +4,10 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 import os
 
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://user:password@db:5432/chistovik")
+DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    "sqlite:///./chistovik.db",
+)
 
 _engine_kwargs = {}
 if DATABASE_URL.startswith("sqlite"):

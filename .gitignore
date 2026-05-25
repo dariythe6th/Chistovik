@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+.venv/
+env/
+*.egg-info/
+.eggs/
+dist/
+build/
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# Локальные отладочные дампы
+backend/_fix_out.txt
+backend/lt_out.txt
+backend/tests/_simulate_result.txt
+
+# База и секреты
+*.db
+*.sqlite3
+.env
+.env.local
+
+# IDE / ОС
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db

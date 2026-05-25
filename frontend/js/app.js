@@ -8,6 +8,7 @@ const rewriteBtn = document.getElementById('rewriteBtn');
 const rewriteStyleSelect = document.getElementById('rewriteStyleSelect');
 const modifiedColumn = document.getElementById('modifiedColumn');
 const modifiedInput = document.getElementById('modifiedInput');
+const applyFixesBtn = document.getElementById('applyFixesBtn');
 const acceptFixesBtn = document.getElementById('acceptFixesBtn');
 const tabBtns = document.querySelectorAll('.tab-btn');
 const tabPanes = document.querySelectorAll('.tab-pane');
@@ -124,7 +125,7 @@ async function handleRewrite() {
     try {
         const rewritten = await API.rewriteText(text, style);
         modifiedColumn.style.display = 'block';
-        modifiedInput.value = rewritten;
+        setModifiedPlainText(rewritten, `Переработанный текст (${styleName})`);
         isRewriteMode = true;
         modifiedColumn.scrollIntoView({ behavior: 'smooth', block: 'start' });
         showNotification(`Текст переписан в стиле «${styleName}»`, 'success');
@@ -166,96 +167,175 @@ function showNotification(msg, type) {
     else alert(msg);
 }
 
-// Кнопка применения исправлений
-const applyFixesBtn = document.getElementById('applyFixesBtn');
-
 if (applyFixesBtn) {
     applyFixesBtn.addEventListener('click', applyFixes);
 }
 
-function applyFixes() {
-    if (!lastAnalysisResult) {
-        showNotification('Сначала выполните анализ текста', 'warning');
-        return;
-    }
-    
-    // Блокируем кнопку на время обработки
-    applyFixesBtn.disabled = true;
-    
-    const text = textInput.value;
-    
-    // Собираем все исправления из орфографии и воды
+function collectFixesFromAnalysis(analysis) {
     const fixes = [];
-    
-    // Орфографические ошибки
-    if (lastAnalysisResult.spelling_errors) {
-        for (const err of lastAnalysisResult.spelling_errors) {
-            if (err.suggestions && err.suggestions.length > 0) {
-                fixes.push({
-                    position: err.position,
-                    length: err.word.length,
-                    original: err.word,
-                    replacement: err.suggestions[0],
-                    type: 'spelling'
-                });
-            }
+
+    if (analysis.spelling_errors) {
+        for (const err of analysis.spelling_errors) {
+            const suggestion = err.suggestions && err.suggestions[0];
+            if (!suggestion || err.position == null || err.position < 0) continue;
+            fixes.push({
+                position: err.position,
+                length: err.word.length,
+                original: err.word,
+                replacement: suggestion,
+                type: 'spelling',
+            });
         }
     }
-    
-    // Водные фразы
-    if (lastAnalysisResult.water_phrases) {
-        for (const wp of lastAnalysisResult.water_phrases) {
-            if (wp.recommendation) {
-                fixes.push({
-                    position: wp.position,
-                    length: wp.phrase.length,
-                    original: wp.phrase,
-                    replacement: wp.recommendation,
-                    type: 'water'
-                });
-            }
+
+    if (analysis.water_phrases) {
+        for (const wp of analysis.water_phrases) {
+            if (wp.recommendation == null || wp.position == null || wp.position < 0) continue;
+            if (wp.recommendation === '—') continue;
+            fixes.push({
+                position: wp.position,
+                length: wp.phrase.length,
+                original: wp.phrase,
+                replacement: wp.recommendation,
+                type: 'water',
+            });
         }
     }
-    
-    if (fixes.length === 0) {
-        showNotification('Нет исправлений для применения', 'info');
-        applyFixesBtn.disabled = false;  // ← разблокировать
-        return;
+
+    return fixes;
+}
+
+function rangesOverlap(aStart, aEnd, bStart, bEnd) {
+    return !(aEnd <= bStart || bEnd <= aStart);
+}
+
+function mergeAndValidateFixes(fixes, text) {
+    const valid = fixes.filter((fix) => {
+        if (!fix.original || fix.length <= 0) return false;
+        const slice = text.substring(fix.position, fix.position + fix.length);
+        return slice.toLowerCase() === fix.original.toLowerCase();
+    });
+
+    valid.sort((a, b) => {
+        if (b.length !== a.length) return b.length - a.length;
+        if (a.type !== b.type) return a.type === 'spelling' ? -1 : 1;
+        return a.position - b.position;
+    });
+
+    const accepted = [];
+    for (const fix of valid) {
+        const end = fix.position + fix.length;
+        const overlaps = accepted.some((a) =>
+            rangesOverlap(fix.position, end, a.position, a.position + a.length)
+        );
+        if (!overlaps) accepted.push(fix);
     }
-    
-    // Сортируем по позиции с конца, чтобы замены не сбивали индексы
-    fixes.sort((a, b) => b.position - a.position);
-    
-    // Применяем исправления и собираем размеченный текст
-    let fixedText = text;
-    const highlights = []; // для подсветки в правой панели
-    
-    for (const fix of fixes) {
-        const before = fixedText.substring(0, fix.position);
-        const after = fixedText.substring(fix.position + fix.length);
-        fixedText = before + fix.replacement + after;
-        
-        // Сохраняем информацию для подсветки
+
+    accepted.sort((a, b) => b.position - a.position);
+    return accepted;
+}
+
+function applyFixesToText(text, fixes) {
+    const merged = mergeAndValidateFixes(fixes, text);
+    let result = text;
+    const highlights = [];
+
+    for (const fix of merged) {
+        const actual = result.substring(fix.position, fix.position + fix.length);
+        if (actual.toLowerCase() !== fix.original.toLowerCase()) continue;
+
+        const before = result.substring(0, fix.position);
+        const after = result.substring(fix.position + fix.length);
+        result = before + fix.replacement + after;
+
         highlights.push({
             position: fix.position,
             length: fix.replacement.length,
             original: fix.original,
-            replacement: fix.replacement
+            replacement: fix.replacement,
         });
     }
-    
-   showFixedText(fixedText, highlights);
+
+    result = result
+        .replace(/([.!?])([А-ЯЁA-Z])/g, '$1 $2')
+        .replace(/ {2,}/g, ' ')
+        .trim();
+
+    highlights.sort((a, b) => a.position - b.position);
+    return { fixedText: result, highlights, appliedCount: highlights.length };
+}
+
+async function applyFixes() {
+    if (!lastAnalysisResult) {
+        showNotification('Сначала выполните анализ текста', 'warning');
+        return;
+    }
+
+    applyFixesBtn.disabled = true;
+    const text = textInput.value;
+
+    try {
+        const data = await API.applyFixes(text, getSelectedFunctions());
+        if (!data.applied_count) {
+            showNotification('Нет исправлений для применения', 'info');
+            applyFixesBtn.disabled = false;
+            return;
+        }
+        if (data.engine && data.engine !== 'dict-v3') {
+            console.warn('Старая версия движка исправлений:', data.engine);
+        }
+        const broken = /этотт|ппишет|ООшибк|ммогут|попоэтому/i;
+        if (broken.test(data.fixed_text)) {
+            showNotification(
+                'Сервер вернул некорректный текст. Пересоберите Docker: docker-compose up --build',
+                'error',
+            );
+            applyFixesBtn.disabled = false;
+            return;
+        }
+        const highlights = (data.applied || []).map((a) => ({
+            position: a.position,
+            length: a.length,
+            original: a.original,
+            replacement: a.replacement,
+        }));
+        showFixedText(data.fixed_text, highlights);
+    } catch (err) {
+        console.error(err);
+        showNotification(err.message || 'Ошибка при применении исправлений', 'error');
+        applyFixesBtn.disabled = false;
+    }
+}
+
+function normalizeHighlights(fixedText, highlights) {
+    const valid = (highlights || [])
+        .filter((h) => h.position >= 0 && h.length > 0 && h.replacement != null)
+        .filter((h) => {
+            const frag = fixedText.substring(h.position, h.position + h.length);
+            return frag === h.replacement;
+        })
+        .sort((a, b) => a.position - b.position);
+
+    const merged = [];
+    let cursor = 0;
+    for (const h of valid) {
+        if (h.position < cursor) continue;
+        merged.push(h);
+        cursor = h.position + h.length;
+    }
+    return merged;
 }
 
 function showFixedText(fixedText, highlights) {
     const modifiedColumn = document.getElementById('modifiedColumn');
     const modifiedInput = document.getElementById('modifiedInput');
-    const modifiedHeader = document.querySelector('#modifiedColumn .editor-header');   
-    
+    const modifiedHeader = document.querySelector('#modifiedColumn .editor-header');
+    const safeHighlights = normalizeHighlights(fixedText, highlights);
+
     // Меняем заголовок
     if (modifiedHeader) {
         modifiedHeader.innerHTML = `
-            <span>Исправленный текст (${highlights.length} изменений)</span>
+            <span>Исправленный текст (${safeHighlights.length} изменений)</span>
             <div style="display: flex; gap: 8px;">
                 <button id="copyFixedTextBtn" class="copy-btn">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -269,24 +349,19 @@ function showFixedText(fixedText, highlights) {
         `;
     }
     
-    // Создаём HTML с подсветкой исправленных слов
-    let html = '';
-    let lastPos = 0;
-    
-    // Сортируем highlights по позиции для правильного порядка
-    const sortedHighlights = [...highlights].sort((a, b) => a.position - b.position);
-    
-    for (const h of sortedHighlights) {
-        // Текст до исправления
-        html += escapeHtml(fixedText.substring(lastPos, h.position));
-        // Исправленное слово с подсветкой
-        html += `<span class="fixed-word" title="Заменено: «${escapeHtml(h.original)}» → «${escapeHtml(h.replacement)}»">${escapeHtml(h.replacement)}</span>`;
-        lastPos = h.position + h.length;
+    if (safeHighlights.length === 0) {
+        modifiedInput.textContent = fixedText;
+    } else {
+        let html = '';
+        let lastPos = 0;
+        for (const h of safeHighlights) {
+            html += escapeHtml(fixedText.substring(lastPos, h.position));
+            html += `<span class="fixed-word" title="Заменено: «${escapeHtml(h.original)}» → «${escapeHtml(h.replacement)}»">${escapeHtml(h.replacement)}</span>`;
+            lastPos = h.position + h.length;
+        }
+        html += escapeHtml(fixedText.substring(lastPos));
+        modifiedInput.innerHTML = html;
     }
-    // Остаток текста
-    html += escapeHtml(fixedText.substring(lastPos));
-    
-    modifiedInput.innerHTML = html;
     modifiedColumn.style.display = 'block';
     modifiedColumn.scrollIntoView({ behavior: 'smooth', block: 'start' });
     
@@ -335,4 +410,41 @@ function showFixedText(fixedText, highlights) {
 function escapeHtml(str) {
     if (!str) return '';
     return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function setModifiedPlainText(text, headerLabel) {
+    const modifiedHeader = document.querySelector('#modifiedColumn .editor-header');
+    if (modifiedHeader) {
+        modifiedHeader.innerHTML = `
+            <span>${escapeHtml(headerLabel || 'Изменённый текст')}</span>
+            <div style="display: flex; gap: 8px;">
+                <button type="button" id="copyFixedTextBtn" class="copy-btn">Копировать</button>
+                <button type="button" id="acceptRewriteBtn" class="accept-btn">Заменить исходный текст</button>
+            </div>
+        `;
+    }
+    modifiedInput.textContent = text;
+    bindModifiedPanelActions(text);
+}
+
+function bindModifiedPanelActions(plainText) {
+    const copyBtn = document.getElementById('copyFixedTextBtn');
+    if (copyBtn) {
+        copyBtn.addEventListener('click', () => {
+            navigator.clipboard.writeText(plainText).then(() => {
+                showNotification('Текст скопирован', 'success');
+            }).catch(() => showNotification('Не удалось скопировать текст', 'error'));
+        });
+    }
+    const acceptRewriteBtn = document.getElementById('acceptRewriteBtn');
+    if (acceptRewriteBtn) {
+        acceptRewriteBtn.addEventListener('click', () => {
+            textInput.value = plainText;
+            modifiedColumn.style.display = 'none';
+            modifiedInput.textContent = '';
+            isRewriteMode = false;
+            updateStatsInRealTime();
+            showNotification('Исходный текст обновлён', 'success');
+        });
+    }
 }
