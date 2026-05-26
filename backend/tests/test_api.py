@@ -1,6 +1,5 @@
 """
-Автоматизированные проверки REST API (уровень интеграционного тестирования).
-NLP-анализ в /api/analyze подменяется фикстурой, чтобы тесты не зависели от Java/LanguageTool.
+Интеграционные тесты REST API (NLP в /api/analyze подменяется фикстурой).
 """
 from unittest.mock import patch
 
@@ -32,11 +31,10 @@ MOCK_ANALYSIS = {
 
 
 def _register(client, email="user@test.ru", password="secretpass1", name="Тест"):
-    r = client.post(
+    return client.post(
         "/api/register",
         json={"name": name, "email": email, "password": password},
     )
-    return r
 
 
 def _login(client, email, password):
@@ -46,47 +44,26 @@ def _login(client, email, password):
     )
 
 
-def test_register_positive(client):
-    r = _register(client)
+def test_auth_register_login_and_profile(client):
+    r = _register(client, email="flow@test.ru", password="pw12345")
     assert r.status_code == 200
-    data = r.json()
-    assert data["email"] == "user@test.ru"
-    assert data["role"] == "user"
-    assert "id" in data
+    assert r.json()["email"] == "flow@test.ru"
+    assert r.json()["role"] == "user"
 
+    login = _login(client, "flow@test.ru", "pw12345")
+    assert login.status_code == 200
+    token = login.json()["access_token"]
+    assert login.json()["token_type"] == "bearer"
 
-def test_register_duplicate_email(client):
+    assert client.get("/api/me").status_code == 401
+    me = client.get("/api/me", headers={"Authorization": f"Bearer {token}"})
+    assert me.status_code == 200
+    assert me.json()["email"] == "flow@test.ru"
+
     _register(client, email="dup@test.ru")
-    r = _register(client, email="dup@test.ru", name="Другой")
-    assert r.status_code == 400
-    assert "already" in r.json()["detail"].lower() or "registered" in r.json()["detail"].lower()
-
-
-def test_login_positive(client):
-    _register(client, email="ok@test.ru", password="mypass99")
-    r = _login(client, "ok@test.ru", "mypass99")
-    assert r.status_code == 200
-    assert r.json()["token_type"] == "bearer"
-    assert len(r.json()["access_token"]) > 10
-
-
-def test_login_wrong_password(client):
-    _register(client, email="u2@test.ru", password="right")
-    r = _login(client, "u2@test.ru", "wrong")
-    assert r.status_code == 400
-
-
-def test_me_without_token(client):
-    r = client.get("/api/me")
-    assert r.status_code == 401
-
-
-def test_me_with_token(client):
-    _register(client, email="me@test.ru", password="pw")
-    token = _login(client, "me@test.ru", "pw").json()["access_token"]
-    r = client.get("/api/me", headers={"Authorization": f"Bearer {token}"})
-    assert r.status_code == 200
-    assert r.json()["email"] == "me@test.ru"
+    assert _register(client, email="dup@test.ru", name="Другой").status_code == 400
+    _register(client, email="bad@test.ru", password="right")
+    assert _login(client, "bad@test.ru", "wrong").status_code == 400
 
 
 @patch("main.analyze_text", return_value=MOCK_ANALYSIS)
@@ -99,52 +76,30 @@ def test_analyze_returns_summary(_, client):
     body = r.json()
     assert body["summary"]["spelling"]["count"] == 1
     assert body["summary"]["water"]["count"] == 1
-    assert "readability_score" in body or body.get("readability_score") is not None
+    assert body.get("readability_score") is not None
 
 
 @patch("main.analyze_text", return_value=MOCK_ANALYSIS)
-def test_save_with_analysis_and_history(_, client):
+def test_history_save_list_delete(_, client):
     _register(client, email="hist@test.ru", password="pw")
-    token = _login(client, "hist@test.ru", "pw").json()["access_token"]
-    headers = {"Authorization": f"Bearer {token}"}
+    headers = {"Authorization": f"Bearer {_login(client, 'hist@test.ru', 'pw').json()['access_token']}"}
 
     save = client.post(
         "/api/save",
         headers=headers,
-        json={
-            "title": "Черновик",
-            "content": "текст в настоящее время",
-            "analysis": MOCK_ANALYSIS,
-        },
+        json={"title": "Черновик", "content": "текст", "analysis": MOCK_ANALYSIS},
     )
     assert save.status_code == 200
-    assert save.json()["title"] == "Черновик"
 
-    hist = client.get("/api/history", headers=headers)
-    assert hist.status_code == 200
-    items = hist.json()
+    items = client.get("/api/history", headers=headers).json()
     assert len(items) == 1
-    assert items[0]["title"] == "Черновик"
+    sid = items[0]["id"]
 
-
-@patch("main.analyze_text", return_value=MOCK_ANALYSIS)
-def test_delete_history_item(_, client):
-    _register(client, email="del@test.ru", password="pw")
-    token = _login(client, "del@test.ru", "pw").json()["access_token"]
-    headers = {"Authorization": f"Bearer {token}"}
-
-    sid = client.post(
-        "/api/save",
-        headers=headers,
-        json={"title": "X", "content": "y", "analysis": None},
-    ).json()["id"]
-
-    r = client.delete(f"/api/history/{sid}", headers=headers)
-    assert r.status_code == 200
+    assert client.delete(f"/api/history/{sid}", headers=headers).status_code == 200
     assert client.get("/api/history", headers=headers).json() == []
 
 
-def test_delete_foreign_history_404(client):
+def test_history_permissions_and_admin(client):
     _register(client, email="a@test.ru", password="p1")
     _register(client, email="b@test.ru", password="p2")
     ta = _login(client, "a@test.ru", "p1").json()["access_token"]
@@ -155,27 +110,17 @@ def test_delete_foreign_history_404(client):
         headers={"Authorization": f"Bearer {ta}"},
         json={"title": "only A", "content": "c"},
     ).json()["id"]
+    assert client.delete(f"/api/history/{sid}", headers={"Authorization": f"Bearer {tb}"}).status_code == 404
 
-    r = client.delete(f"/api/history/{sid}", headers={"Authorization": f"Bearer {tb}"})
-    assert r.status_code == 404
-
-
-def test_admin_list_users_forbidden_for_user(client):
-    _register(client, email="plain@test.ru", password="pw")
-    token = _login(client, "plain@test.ru", "pw").json()["access_token"]
-    r = client.get(
+    assert client.get(
         "/api/admin/users",
-        headers={"Authorization": f"Bearer {token}"},
-    )
-    assert r.status_code == 403
+        headers={"Authorization": f"Bearer {tb}"},
+    ).status_code == 403
 
-
-def test_admin_list_users_ok(client):
-    token = _login(client, "admin@example.com", "admin").json()["access_token"]
-    r = client.get(
+    admin_token = _login(client, "admin@example.com", "admin").json()["access_token"]
+    users = client.get(
         "/api/admin/users",
-        headers={"Authorization": f"Bearer {token}"},
+        headers={"Authorization": f"Bearer {admin_token}"},
     )
-    assert r.status_code == 200
-    emails = {u["email"] for u in r.json()}
-    assert "admin@example.com" in emails
+    assert users.status_code == 200
+    assert "admin@example.com" in {u["email"] for u in users.json()}

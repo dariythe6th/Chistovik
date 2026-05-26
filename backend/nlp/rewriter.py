@@ -16,6 +16,11 @@ from nlp.style_lexicon import (
     TO_LITERARY_PHRASES,
     TO_NEUTRAL_PHRASES,
     TO_SCIENTIFIC_PHRASES,
+    TO_TECH_COLLOQUIAL,
+    TO_TECH_JOURNALISTIC,
+    TO_TECH_LITERARY,
+    TO_TECH_NEUTRAL,
+    TO_TECH_SCIENTIFIC,
 )
 
 _OFFICIAL_MARKERS = (
@@ -189,15 +194,15 @@ def _try_meeting_reschedule_notice(text: str, style: str) -> Optional[str]:
 def _pairs_for_style(style: str) -> List[Tuple[str, str]]:
     """Собирает словарь: для официальных текстов — сначала спецправила."""
     if style == "colloquial":
-        base = OFFICIAL_TO_COLLOQUIAL + TO_COLLOQUIAL_PHRASES
+        base = OFFICIAL_TO_COLLOQUIAL + TO_COLLOQUIAL_PHRASES + TO_TECH_COLLOQUIAL
     elif style == "neutral":
-        base = OFFICIAL_TO_NEUTRAL + TO_NEUTRAL_PHRASES
+        base = OFFICIAL_TO_NEUTRAL + TO_NEUTRAL_PHRASES + TO_TECH_NEUTRAL
     elif style == "literary":
-        base = OFFICIAL_TO_LITERARY + TO_LITERARY_PHRASES
+        base = OFFICIAL_TO_LITERARY + TO_LITERARY_PHRASES + TO_TECH_LITERARY
     elif style == "journalistic":
-        base = OFFICIAL_TO_NEUTRAL + TO_JOURNALISTIC_PHRASES
+        base = OFFICIAL_TO_NEUTRAL + TO_JOURNALISTIC_PHRASES + TO_TECH_JOURNALISTIC
     elif style == "scientific":
-        base = OFFICIAL_TO_NEUTRAL + TO_SCIENTIFIC_PHRASES
+        base = OFFICIAL_TO_NEUTRAL + TO_SCIENTIFIC_PHRASES + TO_TECH_SCIENTIFIC
     else:
         return []
     return base
@@ -336,8 +341,21 @@ def _rewrite_neutral(text: str) -> str:
     return _rewrite_with_style_dict(text, "neutral")
 
 
+def _journalistic_lead(text: str, original: str) -> str:
+    """Лёгкий публицистический зачин, если текст уже переработан."""
+    if not _normalize_changed(original, text):
+        return text
+    if re.match(r"^(Сегодня|Стоит|В основе|Как сообщается|За грамотность)", text, re.I):
+        return text
+    if len(text) < 40:
+        return text
+    body = text[0].lower() + text[1:] if len(text) > 1 else text
+    return f"В основе архитектуры — {body}"
+
+
 def _rewrite_journalistic(text: str) -> str:
-    return _rewrite_with_style_dict(text, "journalistic")
+    result = _rewrite_with_style_dict(text, "journalistic")
+    return _polish_text(_journalistic_lead(result, text), "journalistic")
 
 
 def _rewrite_scientific(text: str) -> str:

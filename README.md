@@ -102,14 +102,22 @@ API будет доступно по адресу `http://localhost:8000`. До�
 ### Автоматизированное тестирование (backend)
 
 ```bash
-# из корня репозитория или из backend/
+# из корня репозитория
 pip install -r backend/requirements-dev.txt
 python -m pytest -v
 ```
 
-Тесты можно запускать из корня проекта (`Chistovik/`) — для этого добавлен `pytest.ini` с путём `pythonpath = backend`.
+В проекте **15 тестов** (`backend/tests/`): API (регистрация, вход, анализ, история, админ), NLP (орфография, «вода», стиль, apply-fixes), переработка текста (все стили). Запуск из корня — `pytest.ini` с `pythonpath = backend`.
 
 Переменная `CHISTOVIK_LIGHT_NLP=1` (в тестах включена автоматически) отключает тяжёлые NLP-зависимости (Java, LanguageTool) и использует rule-based анализ.
+
+### Вход администратора
+
+| Email | Пароль |
+|-------|--------|
+| `admin@example.com` | `admin` |
+
+Страница входа: `html/login.html` (в Docker — https://localhost:8443/html/login.html).
 
 ## Команда разработчиков
 

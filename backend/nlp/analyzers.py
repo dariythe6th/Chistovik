@@ -185,11 +185,62 @@ COMMON_MISSPELLINGS = {
     "могуть": "могут",
     "поэтомы": "поэтому",
     "пишит": "пишет",
+    "потомму": "потому",
+    "потомо": "потом",
+    "хатите": "хотите",
+    "хочите": "хотите",
+    "тренажорный": "тренажёрный",
+    "тренажорная": "тренажёрная",
+    "тренажорное": "тренажёрное",
+    "тренажорные": "тренажёрные",
+    "тренажорном": "тренажёрном",
+    "тренажорного": "тренажёрного",
+    "здраствуйте": "здравствуйте",
+    "здраствуй": "здравствуй",
+    "пожалуста": "пожалуйста",
+    "пожалуйсто": "пожалуйста",
+    "вообщемто": "в общем-то",
+    "когданибуть": "когда-нибудь",
+    "какнибуть": "как-нибудь",
+    "что-бы": "чтобы",
+    "чтоби": "чтобы",
+    "в течении": "в течение",
+    "впринципе": "в принципе",
+    "вобщем": "в общем",
+    "зделать": "сделать",
 }
+
+# Контекстные ошибки (фраза целиком)
+SPELLING_PHRASE_PATTERNS = [
+    (
+        r"(?<![а-яё])это\s+полезна(?![а-яё])",
+        "это полезно",
+        'После «это» нужен средний род: «полезно»',
+    ),
+    (
+        r"(?<![а-яё])это\s+полезен(?![а-яё])",
+        "это полезно",
+        'После «это» нужен средний род: «полезно»',
+    ),
+    (
+        r"(?<![а-яё])это\s+полезны(?![а-яё])",
+        "это полезно",
+        'После «это» нужен средний род: «полезно»',
+    ),
+]
 
 
 def _ranges_overlap(a_start: int, a_end: int, b_start: int, b_end: int) -> bool:
     return not (a_end <= b_start or b_end <= a_start)
+
+
+def _match_case_fragment(original: str, replacement: str) -> str:
+    """Сохраняет регистр первой буквы фрагмента."""
+    if not original or not replacement:
+        return replacement
+    if original[0].isupper():
+        return replacement[:1].upper() + replacement[1:]
+    return replacement
 
 
 def _pick_spelling_suggestions(word: str, raw: List[str]) -> List[str]:
@@ -238,7 +289,7 @@ def _append_spelling_error(
     result["recommendations"].append({
         "type": "spelling",
         "description": description,
-        "suggested_change": ", ".join(suggestions),
+        "suggested_change": ", ".join(ordered),
         "position": position,
     })
     return True
@@ -649,15 +700,27 @@ def analyze_text(text: str, functions: List[str]) -> Dict[str, Any]:
         for wrong, correct in sorted(COMMON_MISSPELLINGS.items(), key=lambda p: -len(p[0])):
             for match in re.finditer(rf"(?<![а-яё]){re.escape(wrong)}(?![а-яё])", lower_text):
                 orig = text[match.start():match.end()]
-                fixed = correct
-                if orig and orig[0].isupper():
-                    fixed = fixed[:1].upper() + fixed[1:]
+                fixed = _match_case_fragment(orig, correct)
                 _append_spelling_error(
                     result,
                     word=orig,
                     position=match.start(),
                     suggestions=[fixed],
-                    description=f'Возможно, имелось в виду "{fixed}"',
+                    description=f'Возможно, имелось в виду «{fixed}»',
+                    occupied=spelling_occupied,
+                    source_text=text,
+                )
+
+        for pattern, replacement, description in SPELLING_PHRASE_PATTERNS:
+            for match in re.finditer(pattern, text, flags=re.IGNORECASE):
+                orig = text[match.start():match.end()]
+                fixed = _match_case_fragment(orig, replacement)
+                _append_spelling_error(
+                    result,
+                    word=orig,
+                    position=match.start(),
+                    suggestions=[fixed],
+                    description=description,
                     occupied=spelling_occupied,
                     source_text=text,
                 )
